@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 from config import get_db_connection
 from datetime import date, datetime, timedelta
+import calendar
 
 
 def _first_day_of_month(d: date) -> date:
@@ -34,12 +35,27 @@ def _start_end_from_rango(rango: str):
         start = now - timedelta(days=7)
         end = now
         return start, end
+    def _subtract_months(dt: datetime, months: int) -> datetime:
+        y = dt.year
+        m = dt.month - months
+        y += (m - 1) // 12
+        m = (m - 1) % 12 + 1
+        last_day = calendar.monthrange(y, m)[1]
+        day = min(dt.day, last_day)
+        return dt.replace(year=y, month=m, day=day)
+
     if rango == '1m':
-        return _start_end_range_for_last_n_months(1)
+        start = _subtract_months(now, 1)
+        end = now
+        return start, end
     if rango == '6m':
-        return _start_end_range_for_last_n_months(6)
+        start = _subtract_months(now, 6)
+        end = now
+        return start, end
     if rango == '1y':
-        return _start_end_range_for_last_n_months(12)
+        start = _subtract_months(now, 12)
+        end = now
+        return start, end
     return None
 
 
@@ -113,6 +129,17 @@ def get_dashboard_stats():
 
         cur.execute(
             """
+            SELECT COUNT(DISTINCT pac.id_paciente)
+            FROM prediccion p
+            JOIN paciente pac ON p.id_paciente = pac.id_paciente
+            WHERE pac.id_usuario = %s AND p.porcentaje IS NOT NULL AND p.porcentaje > 50 AND p.fecha_pred >= %s AND p.fecha_pred < %s
+            """,
+            (medico_id, start_date, end_date),
+        )
+        pacientes_con_positivo = cur.fetchone()[0]
+
+        cur.execute(
+            """
             SELECT AVG(p.porcentaje)
             FROM prediccion p
             JOIN paciente pac ON p.id_paciente = pac.id_paciente
@@ -124,6 +151,22 @@ def get_dashboard_stats():
         precision_promedio = float(precision_promedio) if precision_promedio is not None else 0.0
         nivel_riesgo_promedio = precision_promedio
 
+
+        cur.execute(
+            """
+            SELECT COUNT(*)
+            FROM prediccion p
+            JOIN paciente pac ON p.id_paciente = pac.id_paciente
+            WHERE pac.id_usuario = %s AND p.porcentaje IS NOT NULL AND p.fecha_pred >= %s AND p.fecha_pred < %s
+            """,
+            (medico_id, start_date, end_date),
+        )
+        total_analisis_periodo = cur.fetchone()[0]
+
+        if total_analisis_periodo and total_analisis_periodo > 0:
+            tasa_positividad = round((predicciones_positivas / total_analisis_periodo) * 100, 2)
+        else:
+            tasa_positividad = 0.0
         cur.execute(
             """
             SELECT pac.nombres, pac.apellidos, p.porcentaje, p.fecha_pred, p.ruta_imagen
@@ -192,15 +235,42 @@ def get_dashboard_stats():
         """
 
         cur.execute(sql_stats, (medico_id, start_date, end_date))
-        stats_mensuales = [
-            {
-                "mes": row[0],
+        rows = cur.fetchall()
+
+        if gran == 'month':
+            row_map = {row[0]: {
                 "porcentaje_positivos": float(row[1]) if row[1] is not None else 0.0,
                 "porcentaje_negativos": float(row[2]) if row[2] is not None else 0.0,
-                "total_analisis": row[3],
-            }
-            for row in cur.fetchall()
-        ]
+                "total_analisis": row[3] or 0,
+            } for row in rows}
+
+            stats_mensuales = []
+            curr = start_date.date().replace(day=1)
+            end_month = end_date.date().replace(day=1)
+            while curr <= end_month:
+                label = curr.strftime('%Y-%m')
+                values = row_map.get(label, {
+                    "porcentaje_positivos": 0.0,
+                    "porcentaje_negativos": 0.0,
+                    "total_analisis": 0,
+                })
+                stats_mensuales.append({
+                    "mes": label,
+                    "porcentaje_positivos": values["porcentaje_positivos"],
+                    "porcentaje_negativos": values["porcentaje_negativos"],
+                    "total_analisis": values["total_analisis"],
+                })
+                curr = _add_months(curr, 1)
+        else:
+            stats_mensuales = [
+                {
+                    "mes": row[0],
+                    "porcentaje_positivos": float(row[1]) if row[1] is not None else 0.0,
+                    "porcentaje_negativos": float(row[2]) if row[2] is not None else 0.0,
+                    "total_analisis": row[3],
+                }
+                for row in rows
+            ]
 
         cur.close()
         conn.close()
@@ -217,6 +287,9 @@ def get_dashboard_stats():
                 "total_pacientes": total_pacientes,
                 "total_pacientes_periodo": total_pacientes_periodo,
                 "predicciones_positivas": predicciones_positivas,
+                "pacientes_con_positivo": pacientes_con_positivo,
+                "total_analisis_periodo": total_analisis_periodo,
+                "tasa_positividad": tasa_positividad,
                 "precision_promedio": precision_promedio,
                 "nivel_riesgo_promedio": nivel_riesgo_promedio,
                 "ultimas_predicciones": predicciones_lista,

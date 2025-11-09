@@ -17,6 +17,9 @@ function Pacientes() {
   const [pacientes, setPacientes] = useState([]);
   const [pacientesFiltrados, setPacientesFiltrados] = useState([]);
   const [modal, setModal] = useState({ open: false, title: "", message: "" });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const pageSizes = [5, 10, 25, 50];
 
   useEffect(() => {
     fetchPacientes();
@@ -86,7 +89,14 @@ function Pacientes() {
       });
     }
     setPacientesFiltrados(filtrados);
+    // ajustar página si es necesario
+    setPage(1);
   }, [filtros, pacientes]);
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(pacientesFiltrados.length / pageSize));
+    if (page > totalPages) setPage(totalPages);
+  }, [pacientesFiltrados, pageSize]);
 
   const handleFiltroChange = (e) => {
     const { name, value } = e.target;
@@ -160,6 +170,17 @@ function Pacientes() {
     const date = new Date(fecha);
     return isNaN(date.getTime()) ? "-" : date.toLocaleDateString("es-ES");
   };
+
+  const formatearConfianza = (porcentaje) => {
+    if (porcentaje === null || porcentaje === undefined) return "0%";
+    const val = Number(porcentaje);
+    if (isNaN(val)) return "0%";
+    // Si es entero mostrar sin decimales, si tiene fracción mostrar 2 decimales
+    if (Number.isInteger(val)) return `${val}%`;
+    return `${val.toFixed(2)}%`;
+  };
+
+  const totalPages = Math.max(1, Math.ceil(pacientesFiltrados.length / pageSize));
 
   return (
     <Layout title="Listado de Pacientes">
@@ -266,15 +287,28 @@ function Pacientes() {
               </div>
             </div>
           </div>
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <span className="w-1 h-5 bg-teal-600 mr-3 rounded"></span>
-              Resultados
-            </h3>
-            <span className="text-sm text-gray-600">
-              Total: {pacientesFiltrados.length} paciente
-              {pacientesFiltrados.length !== 1 && "s"}
-            </span>
+            <div>
+              <div className="flex items-start justify-between mb-2">
+                <h3 className="text-lg font-semibold text-gray-900 mb-0 flex items-center">
+                  <span className="w-1 h-5 bg-teal-600 mr-3 rounded"></span>
+                  Resultados
+                </h3>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-600">Mostrar:</label>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+                      className="block w-20 text-sm py-1 px-2 border border-gray-200 rounded bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    >
+                      {pageSizes.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                    <span className="text-sm text-gray-600">filas</span>
+                  </div>
+                </div>
+              </div>
 
             <div id="pdf-content" className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -308,7 +342,9 @@ function Pacientes() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {pacientesFiltrados.length > 0 ? (
-                    pacientesFiltrados.map((paciente) => (
+                    pacientesFiltrados
+                      .slice((page - 1) * pageSize, page * pageSize)
+                      .map((paciente) => (
                       <tr key={paciente.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {paciente.nombreCompleto}
@@ -341,9 +377,7 @@ function Pacientes() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {paciente.porcentaje
-                            ? `${paciente.porcentaje}%`
-                            : "0%"}
+                          {formatearConfianza(paciente.porcentaje)}
                         </td>
 
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
@@ -353,7 +387,7 @@ function Pacientes() {
                           </div>
                         </td>
                       </tr>
-                    ))
+                      ))
                   ) : (
                     <tr>
                       <td
@@ -367,6 +401,48 @@ function Pacientes() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination controls */}
+            {pacientesFiltrados.length > 0 && (
+              <div className="mt-4 flex items-center justify-between">
+                <div className="text-sm text-gray-600">
+                  Mostrando <span className="font-medium text-gray-900">{Math.min((page - 1) * pageSize + 1, pacientesFiltrados.length)}</span> - <span className="font-medium text-gray-900">{Math.min(page * pageSize, pacientesFiltrados.length)}</span> de <span className="font-medium text-gray-900">{pacientesFiltrados.length}</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="px-3 py-1 bg-white border border-gray-200 rounded-md text-sm shadow-sm hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Anterior
+                  </button>
+
+                  <div className="flex items-center gap-1 overflow-x-auto">
+                    {Array.from({ length: totalPages }).map((_, i) => {
+                      const p = i + 1;
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => setPage(p)}
+                          className={`px-3 py-1 text-sm rounded-md border ${p === page ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}
+                        >
+                          {p}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="px-3 py-1 bg-white border border-gray-200 rounded-md text-sm shadow-sm hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              </div>
+            )}
 
             {pacientesFiltrados.length === 0 && (
               <div className="text-center py-8 text-gray-500">

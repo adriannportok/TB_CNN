@@ -252,8 +252,8 @@ function RegistroPaciente() {
                       <input
                         type="radio"
                         name="genero"
-                        value="masculino"
-                        checked={formData.genero === "masculino"}
+                        value="M"
+                        checked={formData.genero === "M"}
                         onChange={handleChange}
                         className="text-blue-600 focus:ring-blue-500"
                       />
@@ -263,8 +263,8 @@ function RegistroPaciente() {
                       <input
                         type="radio"
                         name="genero"
-                        value="femenino"
-                        checked={formData.genero === "femenino"}
+                        value="F"
+                        checked={formData.genero === "F"}
                         onChange={handleChange}
                         className="text-blue-600 focus:ring-blue-500"
                       />

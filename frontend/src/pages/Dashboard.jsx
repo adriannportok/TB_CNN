@@ -136,33 +136,54 @@ function Dashboard() {
     return null;
   };
 
+  const formatPercent = (v) => {
+    if (v === null || v === undefined) return "0%";
+    const num = Number(v);
+    if (isNaN(num)) return "0%";
+    const s = Number.isInteger(num) ? num.toFixed(0) : num.toFixed(2).replace(/\.0+$/,'').replace(/(\.\d[1-9])0$/,'$1');
+    return `${s}%`;
+  };
+
   return (
     <Layout title="Panel Principal">
       <div className="mx-auto max-w-7xl py-6 sm:px-6 lg:px-8">
         <div className="px-4 sm:px-0">
-          <div className="flex justify-between items-center mb-6">
+          <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-800">
               Bienvenido al sistema <span className="text-teal-600">TB-CNN</span>
             </h1>
-            
-            
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600 mr-2">Período:</label>
-              {[
-                { label: 'Últimas 24 hrs', value: '24h' },
-                { label: 'Última semana', value: '7d' },
-                { label: 'Último mes', value: '1m' },
-                { label: 'Últimos seis meses', value: '6m' },
-                { label: 'Último año', value: '1y' }
-              ].map((b) => (
-                <button
-                  key={b.value}
-                  onClick={() => setRangoTemporal(b.value)}
-                  className={`px-3 py-1 rounded-md text-sm border ${rangoTemporal === b.value ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-700 border-gray-300'} focus:outline-none`}
-                >
-                  {b.label}
-                </button>
-              ))}
+            <div className="mt-4 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-gray-600 mr-2">Período:</label>
+                {[
+                  { label: 'Últimas 24 hrs', value: '24h' },
+                  { label: 'Última semana', value: '7d' },
+                  { label: 'Último mes', value: '1m' },
+                  { label: 'Últimos seis meses', value: '6m' },
+                  { label: 'Último año', value: '1y' }
+                ].map((b) => (
+                  <button
+                    key={b.value}
+                    onClick={() => setRangoTemporal(b.value)}
+                    className={`px-3 py-1 rounded-md text-sm border ${rangoTemporal === b.value ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-700 border-gray-300'} focus:outline-none`}
+                  >
+                    {b.label}
+                  </button>
+                ))}
+              </div>
+              <label className="text-sm text-gray-600 ml-15">Duración del período:</label>
+              <div className="text-sm text-gray-600">
+                {stats.filtro && stats.filtro.desde && stats.filtro.hasta ? (
+                  (() => {
+                    const desde = new Date(stats.filtro.desde);
+                    const hasta = new Date(stats.filtro.hasta);
+                    const fmt = (d) => isNaN(d.getTime()) ? '-' : d.toLocaleString('es-PE', { year: 'numeric', month: 'short', day: '2-digit' });
+                    return <span>{`${fmt(desde)}  →  ${fmt(hasta)}`}</span>;
+                  })()
+                ) : (
+                  <span>-</span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -173,46 +194,46 @@ function Dashboard() {
           )}
 
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
             <div className="p-5 bg-white rounded-2xl shadow-md flex items-center justify-between">
               <div>
-                <p className="text-gray-500 text-sm">Pacientes registrados</p>
-                <h2 className="text-2xl font-bold">{stats.total_pacientes}</h2>
+                <p className="text-gray-500 text-sm">Pacientes en el período</p>
+                <h2 className="text-2xl font-bold">{stats.total_pacientes_periodo ?? 0}</h2>
               </div>
               <Users className="w-10 h-10 text-blue-500" />
             </div>
 
             <div className="p-5 bg-white rounded-2xl shadow-md flex items-center justify-between">
               <div>
-                <p className="text-gray-500 text-sm">Tasa de positividad</p>
-                <h2 className="text-2xl font-bold">{stats.tasa_positividad}%</h2>
-                <p className="text-xs text-gray-400">{stats.predicciones_positivas} de {stats.total_analisis_periodo}</p>
+                <p className="text-gray-500 text-sm">Cantidad de pacientes con análisis &gt; 50%</p>
+                <h2 className="text-2xl font-bold">{stats.pacientes_con_positivo ?? 0}</h2>
               </div>
               <Activity className="w-10 h-10 text-red-500" />
             </div>
 
             <div className="p-5 bg-white rounded-2xl shadow-md flex items-center justify-between">
               <div>
-                <p className="text-gray-500 text-sm">Nivel de riesgo promedio</p>
-                <h2 className="text-2xl font-bold">{stats.precision_promedio}%</h2>
+                <p className="text-gray-500 text-sm">Tasa de positividad según total de análisis</p>
+                <h2 className="text-2xl font-bold">{formatPercent(stats.tasa_positividad)}</h2>
+                <p className="text-xs text-gray-400">{`${stats.predicciones_positivas ?? 0} mayores a 50% / ${stats.total_analisis_periodo ?? 0} total analizados`}</p>
               </div>
-              <FileText className="w-10 h-10 text-yellow-500" />
-            </div>
-
-            <div className="p-5 bg-white rounded-2xl shadow-md flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 text-sm">Sin seguimiento</p>
-                <h2 className="text-2xl font-bold">{stats.pacientes_sin_seguimiento}</h2>
-                <p className="text-xs text-gray-400">últimos 30 días</p>
-              </div>
-              <AlertTriangle className="w-10 h-10 text-orange-500" />
+              <Activity className="w-10 h-10 text-teal-600" />
             </div>
           </div>
 
           
           <div className="bg-white rounded-2xl shadow-md p-6 mb-10">
             <h3 className="text-lg font-semibold mb-4">
-              Análisis de los últimos 6 meses
+              {(() => {
+                const map = {
+                  '24h': 'las últimas 24 hrs',
+                  '7d': 'la última semana',
+                  '1m': 'el último mes',
+                  '6m': 'los últimos seis meses',
+                  '1y': 'el último año',
+                };
+                return `Análisis de ${map[rangoTemporal] || 'período seleccionado'}`;
+              })()}
             </h3>
             <p className="text-sm text-gray-600 mb-4">
               Distribución de análisis según nivel de riesgo detectado.
