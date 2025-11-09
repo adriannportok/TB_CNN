@@ -4,7 +4,7 @@ import { Users, Activity, FileText, AlertTriangle } from "lucide-react";
 import axios from "axios";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell 
+  PieChart, Pie, Cell
 } from 'recharts';
 
 function Dashboard() {
@@ -195,29 +195,37 @@ function Dashboard() {
 
           
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
-            <div className="p-5 bg-white rounded-2xl shadow-md flex items-center justify-between">
+            <div className="p-6 bg-gradient-to-br from-white to-slate-50 rounded-3xl shadow-lg flex items-center justify-between border border-gray-100 hover:shadow-xl transition">
               <div>
                 <p className="text-gray-500 text-sm">Pacientes en el período</p>
-                <h2 className="text-2xl font-bold">{stats.total_pacientes_periodo ?? 0}</h2>
+                <h2 className="text-2xl font-extrabold text-gray-900">{stats.total_pacientes_periodo ?? 0}</h2>
+                <p className="text-xs text-gray-400 mt-1">Comparado con el período anterior</p>
               </div>
-              <Users className="w-10 h-10 text-blue-500" />
+              <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center ring-1 ring-gray-200">
+                <Users className="w-6 h-6 text-blue-600" />
+              </div>
             </div>
 
-            <div className="p-5 bg-white rounded-2xl shadow-md flex items-center justify-between">
+            <div className="p-6 bg-gradient-to-br from-white to-slate-50 rounded-3xl shadow-lg flex items-center justify-between border border-gray-100 hover:shadow-xl transition">
               <div>
                 <p className="text-gray-500 text-sm">Cantidad de pacientes con análisis &gt; 50%</p>
-                <h2 className="text-2xl font-bold">{stats.pacientes_con_positivo ?? 0}</h2>
+                <h2 className="text-2xl font-extrabold text-gray-900">{stats.pacientes_con_positivo ?? 0}</h2>
+                <p className="text-xs text-gray-400 mt-1">Casos con probabilidad alta</p>
               </div>
-              <Activity className="w-10 h-10 text-red-500" />
+              <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center ring-1 ring-gray-200">
+                <Activity className="w-6 h-6 text-red-500" />
+              </div>
             </div>
 
-            <div className="p-5 bg-white rounded-2xl shadow-md flex items-center justify-between">
+            <div className="p-6 bg-gradient-to-br from-white to-slate-50 rounded-3xl shadow-lg flex items-center justify-between border border-gray-100 hover:shadow-xl transition">
               <div>
                 <p className="text-gray-500 text-sm">Tasa de positividad según total de análisis</p>
-                <h2 className="text-2xl font-bold">{formatPercent(stats.tasa_positividad)}</h2>
-                <p className="text-xs text-gray-400">{`${stats.predicciones_positivas ?? 0} mayores a 50% / ${stats.total_analisis_periodo ?? 0} total analizados`}</p>
+                <h2 className="text-2xl font-extrabold text-gray-900">{formatPercent(stats.tasa_positividad)}</h2>
+                <p className="text-xs text-gray-400 mt-1">{`${stats.predicciones_positivas ?? 0} mayores a 50% / ${stats.total_analisis_periodo ?? 0} total analizados`}</p>
               </div>
-              <Activity className="w-10 h-10 text-teal-600" />
+              <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center ring-1 ring-gray-200">
+                <Activity className="w-6 h-6 text-teal-600" />
+              </div>
             </div>
           </div>
 
@@ -243,14 +251,29 @@ function Dashboard() {
                 <BarChart
                   data={stats.stats_mensuales}
                   margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                  barCategoryGap="12%"
+                  barGap={3}
                 >
-                  <CartesianGrid strokeDasharray="3 3" />
+                  <defs>
+                    <linearGradient id="gradPos" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f97373" />
+                      <stop offset="100%" stopColor="#ef4444" />
+                    </linearGradient>
+                    <linearGradient id="gradNeg" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#86efac" />
+                      <stop offset="100%" stopColor="#22c55e" />
+                    </linearGradient>
+                    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feDropShadow dx="0" dy="6" stdDeviation="10" floodColor="#000" floodOpacity="0.08" />
+                    </filter>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
                   <XAxis dataKey="mes" />
                   <YAxis label={{ value: 'Porcentaje (%)', angle: -90, position: 'insideLeft' }} />
                   <Tooltip content={<CustomBarTooltip />} />
                   <Legend />
-                  <Bar name="Mayor al 50%" dataKey="porcentaje_positivos" fill="#ef4444" />
-                  <Bar name="Menor o igual al 50%" dataKey="porcentaje_negativos" fill="#22c55e" />
+                  <Bar name="Mayor al 50%" dataKey="porcentaje_positivos" fill="url(#gradPos)" radius={[8,8,0,0]} barSize={34} />
+                  <Bar name="Menor o igual al 50%" dataKey="porcentaje_negativos" fill="url(#gradNeg)" radius={[8,8,0,0]} barSize={34} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -268,22 +291,31 @@ function Dashboard() {
               <div className="h-[400px] w-full flex items-center justify-center">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
+                    <defs>
+                      <filter id="pieShadow" x="-50%" y="-50%" width="200%" height="200%">
+                        <feDropShadow dx="0" dy="6" stdDeviation="8" floodColor="#000" floodOpacity="0.06" />
+                      </filter>
+                    </defs>
                     <Pie
                       data={pieData}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
                       label={({ name, value }) => `${name}: ${value}`}
+                      innerRadius={70}
                       outerRadius={120}
+                      paddingAngle={0}
                       fill="#8884d8"
                       dataKey="value"
+                      isAnimationActive={true}
+                      stroke="none"
                     >
                       {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                        <Cell key={`cell-${index}`} fill={entry.color} style={{ filter: 'url(#pieShadow)' }} />
                       ))}
                     </Pie>
                     <Tooltip content={<CustomPieTooltip />} />
-                    <Legend />
+                    <Legend layout="vertical" align="right" verticalAlign="middle" />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
