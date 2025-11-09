@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Layout from "../components/Layouts";
-import { Upload, Brain, CheckCircle, AlertCircle } from "lucide-react";
-import AlertModal from "../components/AlertModal";
+import { Upload, Brain, CheckCircle, AlertCircle, History, Loader2 } from "lucide-react";
+import axios from "axios";
+
+const API_BASE = "http://localhost:5000";
 
 function AnalisisRadiografia() {
   const [imagen, setImagen] = useState(null);
@@ -9,31 +11,80 @@ function AnalisisRadiografia() {
   const [resultado, setResultado] = useState(null);
   const [loading, setLoading] = useState(false);
   const [progreso, setProgreso] = useState(0);
-  const [modal, setModal] = useState({ open: false, title: "", message: "" });
+  const [pacientesAnalizados, setPacientesAnalizados] = useState([]);
+  const [pacientesPendientes, setPacientesPendientes] = useState([]);
+  const [prediccionesPaciente, setPrediccionesPaciente] = useState(null);
+  const [pacienteSeleccionado, setPacienteSeleccionado] = useState(null);
+  const modalRef = useRef(null);
+  const [loadingPredId, setLoadingPredId] = useState(null);
+  const [notifModal, setNotifModal] = useState({ open: false, title: "", message: "", type: "info" });
 
-  const [pacientesEjemplo] = useState([
-    {
-      id: 1,
-      nombre: "María López",
-      dni: "72435689",
-      confianza: "98.3%",
-      imagen: "http://localhost:5000/uploads/tbc1.jpeg",
-    },
-    {
-      id: 2,
-      nombre: "Juan Pérez",
-      dni: "70891234",
-      confianza: "92.1%",
-      imagen: "http://localhost:5000/uploads/tbc1.jpeg",
-    },
-    {
-      id: 3,
-      nombre: "Ana Torres",
-      dni: "75218903",
-      confianza: "87.5%",
-      imagen: "http://localhost:5000/uploads/tbc1.jpeg",
-    },
-  ]);
+  const openModal = ({ title, message, type = "info" }) => {
+    setNotifModal({ open: true, title, message, type });
+  };
+  const closeModal = () => setNotifModal((prev) => ({ ...prev, open: false }));
+
+  const [itemsPorPaginaPendientes, setItemsPorPaginaPendientes] = useState(6);
+  const [paginaActualPendientes, setPaginaActualPendientes] = useState(1);
+  const [itemsPorPaginaAnalizados, setItemsPorPaginaAnalizados] = useState(6);
+  const [paginaActualAnalizados, setPaginaActualAnalizados] = useState(1);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        setPacienteSeleccionado(null);
+        setPrediccionesPaciente(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    fetchPacientesAnalizados();
+    fetchPacientesPendientes();
+  }, []);
+
+  useEffect(() => {
+    if (pacienteSeleccionado) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "auto";
+    }
+    return () => {
+      document.body.style.overflow = "auto";
+    };
+  }, [pacienteSeleccionado]);
+
+  const fetchPacientesAnalizados = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/analisis/pacientes`);
+      setPacientesAnalizados(response.data || []);
+    } catch (error) {
+      console.error("Error al obtener pacientes analizados:", error);
+    }
+  };
+
+  
+
+  const fetchPacientesPendientes = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/analisis/pacientes/pendientes`);
+      setPacientesPendientes(response.data || []);
+    } catch (error) {
+      console.error("Error al obtener pacientes pendientes:", error);
+    }
+  };
+
+  const fetchPrediccionesPaciente = async (idPaciente) => {
+    try {
+      const response = await axios.get(`${API_BASE}/api/analisis/predicciones/${idPaciente}`);
+      setPrediccionesPaciente(response.data || []);
+      setPacienteSeleccionado(pacientesAnalizados.find((p) => p.id_paciente === idPaciente));
+    } catch (error) {
+      console.error("Error al obtener predicciones:", error);
+    }
+  };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -43,197 +94,171 @@ function AnalisisRadiografia() {
     }
   };
 
-  const handleAnalizar = async () => {
-    if (!imagen) return;
-
+  const handleAnalizar = async (id_pred) => {
+    if (!id_pred) return;
     setLoading(true);
-    setResultado(null);
-    setProgreso(0);
-
-    
-    const interval = setInterval(() => {
-      setProgreso((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 200);
-
+    setLoadingPredId(id_pred);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 2200));
-
-      setResultado({
-        confianza: "94.7%",
-      });
+      const response = await axios.post(`${API_BASE}/api/analisis/ejecutar/${id_pred}`);
+      if (response.status === 200) {
+        const { porcentaje, nivel_confianza, simulado } = response.data;
+        const message = simulado
+          ? `Análisis simulado: ${Number(porcentaje).toFixed(2)}%`
+          : `Análisis completado: ${Number(porcentaje).toFixed(2)}%\nConfianza: ${nivel_confianza}`;
+        openModal({ title: simulado ? "Análisis simulado" : "Análisis completado", message, type: simulado ? "warning" : "success" });
+        await fetchPacientesAnalizados();
+        await fetchPacientesPendientes();
+      }
     } catch (error) {
-      setModal({ open: true, title: "Error", message: "Error al procesar la radiografía." });
+      console.error("Error en el análisis:", error);
+      openModal({ title: "Error", message: "Error al procesar la radiografía", type: "error" });
     } finally {
       setLoading(false);
+      setLoadingPredId(null);
     }
   };
 
-  const handleCancelar = () => {
-    setImagen(null);
-    setPreview(null);
-    setResultado(null);
-    setProgreso(0);
-  };
+  const totalPaginasPendientes = Math.ceil(pacientesPendientes.length / itemsPorPaginaPendientes);
+  const indexUltimoPendientes = paginaActualPendientes * itemsPorPaginaPendientes;
+  const indexPrimeroPendientes = indexUltimoPendientes - itemsPorPaginaPendientes;
+  const pacientesPendientesPaginados = pacientesPendientes.slice(indexPrimeroPendientes, indexUltimoPendientes);
+
+  const totalPaginasAnalizados = Math.ceil(pacientesAnalizados.length / itemsPorPaginaAnalizados);
+  const indexUltimoAnalizados = paginaActualAnalizados * itemsPorPaginaAnalizados;
+  const indexPrimeroAnalizados = indexUltimoAnalizados - itemsPorPaginaAnalizados;
+  const pacientesAnalizadosPaginados = pacientesAnalizados.slice(indexPrimeroAnalizados, indexUltimoAnalizados);
+
+  
 
   return (
     <Layout title="Análisis de Radiografía">
       <div className="px-2 sm:px-4 py-2">
-        
+        {loading && (
+          <div className="fixed top-0 left-0 right-0 z-50">
+            <div className="h-1 w-full bg-teal-100">
+              <div className="h-1 w-1/3 bg-teal-600 animate-pulse"></div>
+            </div>
+          </div>
+        )}
+
         <div className="mb-4">
-          <h2 className="text-left font-bold text-gray-700">
-            Radiografía para análisis automático
-          </h2>
+          <h2 className="text-left font-bold text-gray-700"> Radiografía para análisis automático </h2>
         </div>
 
-        
         <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-6 w-full mb-6">
-          <div className="mb-6 pb-6 border-b border-white">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <span className="w-1 h-5 bg-teal-600 mr-3 rounded"></span>
-              Análisis con modelo CNN
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+              <span className="w-1 h-5 bg-orange-500 mr-3 rounded"></span>
+              Pacientes por analizar ({pacientesPendientes.length})
             </h3>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              
-              <div>
-                <label
-                  htmlFor="imagen"
-                  className="block text-sm font-medium text-gray-700 mb-2 text-left"
+            {pacientesPendientes.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Mostrar:</span>
+                <select
+                  value={itemsPorPaginaPendientes}
+                  onChange={(e) => {
+                    setItemsPorPaginaPendientes(Number(e.target.value));
+                    setPaginaActualPendientes(1);
+                  }}
+                  className="px-3 py-1.5 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
                 >
-                  Subir radiografía de tórax
-                </label>
-                <div className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-md p-6 hover:border-teal-500 transition">
-                  <input
-                    type="file"
-                    id="imagen"
-                    name="imagen"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden"
-                  />
-                  <label
-                    htmlFor="imagen"
-                    className="flex flex-col items-center cursor-pointer"
-                  >
-                    <Upload className="w-8 h-8 text-gray-500 mb-2" />
-                    <span className="text-gray-600 text-sm">
-                      {imagen ? "Cambiar imagen" : "Seleccionar imagen"}
-                    </span>
-                  </label>
-                </div>
-
+                  <option value={3}>3</option>
+                  <option value={6}>6</option>
+                  <option value={9}>9</option>
+                  <option value={12}>12</option>
+                  <option value={pacientesPendientes.length}>Todos</option>
+                </select>
               </div>
+            )}
+          </div>
 
-              
-              <div className="flex items-center justify-center">
-                {preview ? (
-                  <img
-                    src={preview}
-                    alt="Radiografía cargada"
-                    className="w-64 h-64 object-cover rounded-md shadow-md border border-gray-300"
-                  />
-                ) : (
-                  <div className="w-64 h-64 flex items-center justify-center text-gray-400 border-2 border-dashed border-gray-300 rounded-md">
-                    Sin imagen
+          {pacientesPendientes.length === 0 ? (
+            <div className="text-center py-8 text-gray-500"> No hay pacientes pendientes de análisis </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {pacientesPendientesPaginados.map((paciente) => (
+                  <div key={paciente.id_pred} className="bg-gray-50 border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition">
+                    <div className="flex items-center justify-center mb-3">
+                      <img src={`${API_BASE}/${paciente.ruta_imagen}`} alt={`${paciente.nombres} ${paciente.apellidos}`} className="w-32 h-32 object-cover rounded-md border border-gray-300" />
+                    </div>
+                    <p className="text-gray-800 font-semibold text-center">{paciente.nombres} {paciente.apellidos}</p>
+                    <p className="text-sm text-gray-500 text-center">DNI: {paciente.dni}</p>
+                    <p className="text-sm text-gray-500 text-center">Registrado: {new Date(paciente.fecha_registro).toLocaleDateString()}</p>
+                    <button
+                      onClick={() => handleAnalizar(paciente.id_pred)}
+                      disabled={loadingPredId === paciente.id_pred}
+                      className={`mt-3 w-full px-4 py-2 rounded-md transition flex items-center justify-center text-white ${loadingPredId === paciente.id_pred ? "bg-teal-400 cursor-not-allowed" : "bg-teal-600 hover:bg-teal-700"}`}
+                    >
+                      {loadingPredId === paciente.id_pred ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Analizando...
+                        </>
+                      ) : (
+                        <>
+                          <Brain className="w-4 h-4 mr-2" /> Analizar
+                        </>
+                      )}
+                    </button>
                   </div>
-                )}
+                ))}
               </div>
-            </div>
-          </div>
 
-          
-          {loading && (
-            <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
-              <div
-                className="bg-teal-600 h-3 rounded-full transition-all duration-300"
-                style={{ width: `${progreso}%` }}
-              ></div>
-            </div>
-          )}
-
-          
-          {resultado && (
-            <div className="mb-6 pb-6 border-b border-white">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <span className="w-1 h-5 bg-teal-600 mr-3 rounded"></span>
-                Resultado del Análisis
-              </h3>
-              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 flex items-start space-x-3">
-                <div>
-                  <p className="text-gray-800">
-                    <strong>Confianza del modelo:</strong> {resultado.confianza}
-                  </p>
+              {totalPaginasPendientes > 1 && (
+                <div className="flex justify-center items-center mt-6 gap-2">
+                  <button onClick={() => setPaginaActualPendientes(paginaActualPendientes - 1)} disabled={paginaActualPendientes === 1} className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Anterior</button>
+                  <span className="text-sm text-gray-600"> Página {paginaActualPendientes} de {totalPaginasPendientes} </span>
+                  <button onClick={() => setPaginaActualPendientes(paginaActualPendientes + 1)} disabled={paginaActualPendientes === totalPaginasPendientes} className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Siguiente</button>
                 </div>
-              </div>
-            </div>
-          )}
-
-          
-          <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-4 pt-4 border-t border-white">
-            <button
-              type="button"
-              onClick={handleCancelar}
-              disabled={loading}
-              className="px-6 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-            >
-              Cancelar
-            </button>
-
-            <button
-              type="button"
-              onClick={handleAnalizar}
-              disabled={loading || !imagen}
-              className="px-6 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              {loading ? (
-                <>
-                  <Brain className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" />
-                  Analizando...
-                </>
-              ) : (
-                "Analizar Radiografía"
               )}
-            </button>
-          </div>
+            </>
+          )}
         </div>
 
         
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-            <span className="w-1 h-5 bg-teal-600 mr-3 rounded"></span>
-            Pacientes analizados
-          </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {pacientesEjemplo.map((p) => (
-              <div
-                key={p.id}
-                className="bg-gray-50 border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition"
-              >
-                <div className="flex items-center justify-center mb-3">
-                  <img
-                    src={p.imagen}
-                    alt={p.nombre}
-                    className="w-32 h-32 object-cover rounded-md border border-gray-300"
-                  />
-                </div>
-                <p className="text-gray-800 font-semibold text-center">{p.nombre}</p>
-                <p className="text-sm text-gray-500 text-center">DNI: {p.dni}</p>
-                <p className="text-sm text-gray-500 text-center">
-                  Confianza: {p.confianza}
-                </p>
+        {/* Sección 'Pacientes analizados' removida: ahora se muestra en la pantalla Pacientes */}
+
+        {/* Modal historial */}
+        {pacienteSeleccionado && prediccionesPaciente && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center" onMouseDown={(e) => { if (modalRef.current && !modalRef.current.contains(e.target)) { setPacienteSeleccionado(null); setPrediccionesPaciente(null); } }}>
+            <div className="absolute inset-0 backdrop-blur-sm bg-white/10"></div>
+            <div ref={modalRef} role="dialog" aria-modal="true" className="relative bg-gray-50 border border-gray-200 rounded-lg shadow-md max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 z-10 mx-4">
+              <div className="flex items-center justify-between mb-4 border-b border-gray-200 pb-2">
+                <h3 className="text-lg font-semibold text-gray-800">Historial de {pacienteSeleccionado.nombres} {pacienteSeleccionado.apellidos}</h3>
+                <button onClick={() => { setPacienteSeleccionado(null); setPrediccionesPaciente(null); }} aria-label="Cerrar modal" className="px-6 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">Cerrar</button>
               </div>
-            ))}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {prediccionesPaciente.map((pred) => (
+                  <div key={pred.id_pred} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition">
+                    {pred.ruta_imagen ? (
+                      <img src={`${API_BASE}/${pred.ruta_imagen}`} alt={`Análisis del ${new Date(pred.fecha_pred).toLocaleDateString()}`} className="w-full h-48 object-cover rounded-md mb-2 border border-gray-300" />
+                    ) : (
+                      <div className="w-full h-48 flex items-center justify-center bg-gray-100 rounded-md mb-2 text-gray-400 border border-gray-300">Sin imagen</div>
+                    )}
+                    <p className="font-semibold text-gray-800">Predicción: {pred.porcentaje !== null ? `${Number(pred.porcentaje).toFixed(1)}%` : 'Pendiente'}</p>
+                    <p className="text-sm text-gray-500">{pred.fecha_pred ? new Date(pred.fecha_pred).toLocaleString() : '-'}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
+
+        {notifModal.open && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true">
+            <div className="absolute inset-0 bg-black/30"></div>
+            <div className="relative bg-white rounded-lg shadow-lg max-w-sm w-full p-6 mx-4">
+              <div className="mb-3"><h3 className="text-lg font-semibold text-gray-800">{notifModal.title || "Mensaje"}</h3></div>
+              <p className="text-gray-600 whitespace-pre-line">{notifModal.message}</p>
+              <div className="mt-5 flex justify-end"><button onClick={closeModal} className="px-5 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700">Aceptar</button></div>
+            </div>
+          </div>
+        )}
+
       </div>
-      <AlertModal open={modal.open} title={modal.title} message={modal.message} onClose={() => setModal({ open: false, title: "", message: "" })} />
     </Layout>
   );
 }
