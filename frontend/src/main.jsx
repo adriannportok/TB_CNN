@@ -7,6 +7,8 @@ import Dashboard from './pages/Dashboard.jsx'
 import Pacientes from './pages/Pacientes.jsx'
 import RegistroPaciente from './pages/RegistroPaciente.jsx'
 import AnalisisRadiografia from './pages/AnalisisRadiografia.jsx'
+import AdminInicio from './pages/AdminInicio.jsx'
+import Usuarios from './pages/Usuarios.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -17,6 +19,8 @@ createRoot(document.getElementById('root')).render(
         <Route path="/pacientes" element={<Pacientes />} />
         <Route path="/registropaciente" element={<RegistroPaciente />} />
         <Route path="/analisisradiografia" element={<AnalisisRadiografia />} />
+        <Route path="/admin" element={<AdminInicio />} />
+        <Route path="/usuarios" element={<Usuarios />} />
       </Routes>
     </Router>
   </StrictMode>,

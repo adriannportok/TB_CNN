@@ -38,11 +38,17 @@ function Login() {
       if (data.success) {
         localStorage.setItem('token', data.token);
         localStorage.setItem('usuario', formData.usuario);
-    localStorage.setItem('id_usuario', data.id_usuario);
-    localStorage.setItem("rol", data.rol);
-    localStorage.setItem("nombres", data.nombres);
-    localStorage.setItem("apellidos", data.apellidos);
-    window.location.href = '/dashboard';
+        localStorage.setItem('id_usuario', data.id_usuario);
+        localStorage.setItem('rol', data.rol);
+        localStorage.setItem('nombres', data.nombres);
+        localStorage.setItem('apellidos', data.apellidos);
+        // Redirect según rol
+        const rol = (data.rol || '').toString().toLowerCase();
+        if (rol === 'administrador' || rol === 'admin') {
+          window.location.href = '/admin';
+        } else {
+          window.location.href = '/dashboard';
+        }
       } else {
         setError(data.message);
       }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Sidebar, { SidebarItem } from "./Sidebar";
-import { Home, Layers, StickyNote, Cog, Network } from "lucide-react";
+import { Home, Layers, StickyNote, Cog, Network, Users } from "lucide-react";
 
 export default function MainLayout({ children, title }) {
   const rol = localStorage.getItem("rol");
@@ -43,7 +43,8 @@ export default function MainLayout({ children, title }) {
         )}
         {rol === "administrador" && (
           <>
-            <SidebarItem icon={<Cog size={25} />} text="Configuración" />
+            <SidebarItem icon={<Home size={25} />} text="Inicio" to="/admin" />
+            <SidebarItem icon={<Users size={25} />} text="Usuarios" to="/usuarios" />
           </>
         )}
       </Sidebar>

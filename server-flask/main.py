@@ -5,6 +5,7 @@ from config import get_db_connection
 from flask import jsonify
 from flask import Flask, send_from_directory
 from routes.paciente import paciente_bp
+from routes.usuario import usuario_bp
 from routes.dashboard import dashboard
 from routes.radiografia import radiografia_bp
 
@@ -15,6 +16,7 @@ app.register_blueprint(auth_bp, url_prefix='/auth')
 app.register_blueprint(paciente_bp, url_prefix='/api')
 app.register_blueprint(dashboard, url_prefix='/api')
 app.register_blueprint(radiografia_bp, url_prefix='/api')
+app.register_blueprint(usuario_bp, url_prefix='/api')
 
 @app.route('/')
 def hello_world():
