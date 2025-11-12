@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Layout from "../components/Layouts";
-import { Users, Activity, FileText, AlertTriangle } from "lucide-react";
+import { Users, Activity, FileText, AlertTriangle, Target } from "lucide-react";
 import axios from "axios";
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -150,7 +150,7 @@ function Dashboard() {
         <div className="px-4 sm:px-0">
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-800">
-              Bienvenido al sistema <span className="text-teal-600">TB-CNN</span>
+              Bienvenido al sistema <span className="text-teal-600">LUNGNET</span>
             </h1>
             <div className="mt-4 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -224,7 +224,7 @@ function Dashboard() {
                 <p className="text-xs text-gray-400 mt-1">{`${stats.predicciones_positivas ?? 0} mayores a 50% / ${stats.total_analisis_periodo ?? 0} total analizados`}</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center ring-1 ring-gray-200">
-                <Activity className="w-6 h-6 text-teal-600" />
+                <Target className="w-6 h-6 text-teal-600" />
               </div>
             </div>
           </div>

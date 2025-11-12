@@ -43,7 +43,7 @@ export default function Sidebar({ children, onToggle }) {
                   expanded ? "opacity-100" : "opacity-0 w-0"
                 }`}
               >
-                TB-CNN
+                LUNGNET
               </span>
             </div>
 

@@ -1,4 +1,4 @@
-# 🚀 Inicio Rápido - TB-CNN
+# 🚀 Inicio Rápido - LUNGNET
 
 ## Pasos para ejecutar el proyecto
 

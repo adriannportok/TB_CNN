@@ -1,8 +1,8 @@
-# Script de inicio rápido para TB-CNN
+# Script de inicio rápido para LUNGNET
 # Ejecuta este script desde PowerShell en la raíz del proyecto
 
 Write-Host "=====================================" -ForegroundColor Cyan
-Write-Host "   TB-CNN - Inicio Automático" -ForegroundColor Cyan
+Write-Host "   LUNGNET - Inicio Automático" -ForegroundColor Cyan
 Write-Host "=====================================" -ForegroundColor Cyan
 Write-Host ""
 

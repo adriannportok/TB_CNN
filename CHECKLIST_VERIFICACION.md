@@ -1,4 +1,4 @@
-# ✅ Checklist de Verificación - TB-CNN
+# ✅ Checklist de Verificación - LUNGNET
 
 Usa este checklist para asegurarte de que todo funciona correctamente después de la restauración.
 
@@ -260,5 +260,5 @@ _____________________________________
 
 ---
 
-**Proyecto:** TB-CNN - Sistema de Detección de Tuberculosis  
+**Proyecto:** LUNGNET - Sistema de Detección de Tuberculosis  
 **USAT 2025**

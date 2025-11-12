@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Layout from "../components/Layouts";
 import axios from "axios";
 import { Pencil, Trash2, Eye, EyeOff } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 function Usuarios() {
   const [filtros, setFiltros] = useState({
@@ -16,6 +17,7 @@ function Usuarios() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const pageSizes = [5, 10, 25, 50];
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchUsuarios();
@@ -105,6 +107,12 @@ function Usuarios() {
               <div className="w-full lg:w-1/3">
                 <label htmlFor="usuario" className="block text-sm font-medium text-gray-700 mb-2 text-left">Usuario</label>
                 <input type="text" id="usuario" name="usuario" value={filtros.usuario} onChange={handleFiltroChange} placeholder="Buscar por usuario" className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+              </div>
+
+              <div className="w-full lg:w-auto flex items-center justify-end">
+                <button onClick={() => navigate('/usuarios/nuevo')} className="inline-flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-md shadow-sm text-sm">
+                  Añadir Usuario
+                </button>
               </div>
             </div>
           </div>

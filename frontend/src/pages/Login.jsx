@@ -72,7 +72,7 @@ function Login() {
             className="mx-auto h-25 w-auto" 
           />
           <h2 className="mb-10 text-center text-2xl font-bold tracking-tight text-gray-900">
-            TB-CNN
+            LUNGNET
           </h2>
           
           {error && (

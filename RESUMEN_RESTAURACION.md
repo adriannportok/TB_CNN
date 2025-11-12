@@ -1,4 +1,4 @@
-# 📋 Resumen de Restauración - TB-CNN
+# 📋 Resumen de Restauración - LUNGNET
 
 ## ✅ Archivos Restaurados y Mejorados
 
@@ -221,5 +221,5 @@ Plantilla para configuración de entorno
 ---
 
 **Última actualización:** 7 de noviembre de 2025
-**Proyecto:** TB-CNN - Sistema de Detección de Tuberculosis
+**Proyecto:** LUNGNET - Sistema de Detección de Tuberculosis
 **USAT 2025**

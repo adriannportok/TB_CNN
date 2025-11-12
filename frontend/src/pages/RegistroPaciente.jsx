@@ -121,13 +121,7 @@ function RegistroPaciente() {
   };
 
   const handleCancel = () => {
-    if (
-      window.confirm(
-        "¿Estás seguro de que quieres cancelar? Se perderán los datos no guardados."
-      )
-    ) {
-      navigate("/pacientes");
-    }
+    setModal({ open: true, title: 'Confirmar', message: '¿Estás seguro de que quieres cancelar? Se perderán los datos no guardados.', onConfirm: () => { navigate('/pacientes'); } });
   };
 
   const closeModal = () => setModal({ open: false, title: "", message: "" });
@@ -136,8 +130,8 @@ function RegistroPaciente() {
     <Layout title="Registro de Paciente">
       <div className="px-2 sm:px-4 py-2">
         <div className="mb-4">
-          <h2 className="text-left font-bold text-gray-700">
-            Ingresar los datos del nuevo paciente
+      <h2 className="text-left font-bold text-gray-700">
+        Ingresar los datos del nuevo paciente
           </h2>
         </div>
 
@@ -338,7 +332,7 @@ function RegistroPaciente() {
           </div>
         </div>
       </div>
-      <AlertModal open={modal.open} title={modal.title} message={modal.message} onClose={closeModal} />
+  <AlertModal open={modal.open} title={modal.title} message={modal.message} onClose={() => setModal({ open: false, title: "", message: "", onConfirm: undefined })} onConfirm={modal.onConfirm} />
     </Layout>
   );
 }

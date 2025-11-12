@@ -1,4 +1,4 @@
-# TB-CNN - Sistema de Detección de Tuberculosis# Sistema de Detección de Tuberculosis mediante IA
+# LUNGNET - Sistema de Detección de Tuberculosis# Sistema de Detección de Tuberculosis mediante IA
 
 
 

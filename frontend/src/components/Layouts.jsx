@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Sidebar, { SidebarItem } from "./Sidebar";
-import { Home, Layers, StickyNote, Cog, Network, Users } from "lucide-react";
+import { Home, Layers, StickyNote, Cog, Network, Users, UsersRound } from "lucide-react";
 
 export default function MainLayout({ children, title }) {
   const rol = localStorage.getItem("rol");
@@ -25,13 +25,8 @@ export default function MainLayout({ children, title }) {
               to="/dashboard"
             />
             <SidebarItem
-              icon={<Layers size={25} />}
-              text="Registrar Paciente"
-              to="/registropaciente"
-            />
-            <SidebarItem
-              icon={<StickyNote size={25} />}
-              text="Listado Pacientes"
+              icon={<UsersRound size={25} />}
+              text="Pacientes"
               to="/pacientes"
             />
             <SidebarItem
@@ -59,7 +54,7 @@ export default function MainLayout({ children, title }) {
             className={`mx-auto max-w-7xl py-6 flex justify-between items-center transition-all duration-300 
     ${expanded ? "px-12" : ""}`}
           >
-            <h1 className="text-3xl font-bold tracking-tight text-white">
+                <h1 className="text-3xl font-bold tracking-tight text-white">
               {title}
             </h1>
             <button

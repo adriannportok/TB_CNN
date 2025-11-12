@@ -155,3 +155,100 @@ def crear_paciente():
             cur.close()
             conn.close()
         return jsonify({"error": str(e)}), 500
+
+
+@paciente_bp.route('/pacientes/<int:id_paciente>', methods=['PATCH', 'PUT'])
+def actualizar_paciente(id_paciente):
+    try:
+        nombre = request.form.get('nombre')
+        apellido = request.form.get('apellido')
+        dni = request.form.get('dni')
+        genero = request.form.get('genero')
+        fecha_nacimiento = request.form.get('fechaNacimiento')
+        usuario = request.form.get('usuario')
+        imagen = request.files.get('imagen')
+
+        # simple validation: require usuario (medico) to be provided
+        if not usuario:
+            return jsonify({"error": "Usuario (médico) requerido para editar."}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute("""
+            SELECT id_usuario FROM usuario 
+            WHERE usuario = %s AND rol = 'medico'
+        """, (usuario,))
+        usuario_result = cur.fetchone()
+        if not usuario_result:
+            return jsonify({"error": "Usuario no encontrado o no es médico"}), 404
+        id_usuario = usuario_result[0]
+
+        # ensure paciente exists
+        cur.execute("SELECT id_paciente FROM paciente WHERE id_paciente = %s", (id_paciente,))
+        if not cur.fetchone():
+            return jsonify({"error": "Paciente no encontrado"}), 404
+
+        updates = []
+        params = []
+        if nombre:
+            name_regex = r"^[A-Za-zÀ-ÖØ-öø-ÿ\s'\-]+$"
+            if not re.fullmatch(name_regex, nombre):
+                return jsonify({"error": "El campo 'nombre' solo debe contener letras, espacios, '-' o \"'\""}), 400
+            updates.append("nombres = %s")
+            params.append(nombre.strip())
+        if apellido:
+            name_regex = r"^[A-Za-zÀ-ÖØ-öø-ÿ\s'\-]+$"
+            if not re.fullmatch(name_regex, apellido):
+                return jsonify({"error": "El campo 'apellido' solo debe contener letras, espacios, '-' o \"'\""}), 400
+            updates.append("apellidos = %s")
+            params.append(apellido.strip())
+        if dni:
+            if not dni.isdigit() or len(dni) > 8 or len(dni) < 1:
+                return jsonify({"error": "El DNI debe contener solo números y como máximo 8 dígitos"}), 400
+            # check uniqueness (except this paciente)
+            cur.execute("SELECT COUNT(*) FROM paciente WHERE dni = %s AND id_paciente <> %s", (dni, id_paciente))
+            if cur.fetchone()[0] > 0:
+                return jsonify({"error": "Ya existe otro paciente con ese DNI"}), 400
+            updates.append("dni = %s")
+            params.append(dni)
+        if genero:
+            updates.append("sexo = %s")
+            params.append(True if genero.upper() == 'M' else False)
+        if fecha_nacimiento:
+            try:
+                fecha_nac = datetime.strptime(fecha_nacimiento, '%Y-%m-%d')
+            except Exception:
+                return jsonify({"error": "Formato de fecha inválido"}), 400
+            hoy = datetime.now()
+            edad = hoy.year - fecha_nac.year - ((hoy.month, hoy.day) < (fecha_nac.month, fecha_nac.day))
+            updates.append("fecha_nac = %s")
+            params.append(fecha_nac)
+            updates.append("edad = %s")
+            params.append(edad)
+
+        if updates:
+            params.append(id_paciente)
+            sql = f"UPDATE paciente SET {', '.join(updates)} WHERE id_paciente = %s"
+            cur.execute(sql, tuple(params))
+
+        # If an image is provided, save it and create a new prediccion (new radiografia -> pendiente)
+        if imagen:
+            filename = secure_filename(f"{dni or 'pac'}_{datetime.now().strftime('%Y%m%d%H%M%S')}.png")
+            upload_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', filename)
+            imagen.save(upload_path)
+            ruta_imagen = f'uploads/{filename}'
+            cur.execute("INSERT INTO prediccion (ruta_imagen, id_paciente) VALUES (%s, %s)", (ruta_imagen, id_paciente))
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"mensaje": "Paciente actualizado"}), 200
+
+    except Exception as e:
+        if 'conn' in locals():
+            conn.rollback()
+            cur.close()
+            conn.close()
+        return jsonify({"error": str(e)}), 500

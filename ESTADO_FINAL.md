@@ -1,9 +1,9 @@
-# 🎉 RESTAURACIÓN COMPLETA - TB-CNN
+# 🎉 RESTAURACIÓN COMPLETA - LUNGNET
 
 ## ✅ Estado: EXITOSO
 
 **Fecha:** 7 de noviembre de 2025  
-**Proyecto:** TB-CNN - Sistema de Detección de Tuberculosis  
+**Proyecto:** LUNGNET - Sistema de Detección de Tuberculosis  
 **Universidad:** USAT
 
 ---
@@ -312,4 +312,4 @@ Todas las funcionalidades desarrolladas durante la conversación han sido implem
 ---
 
 _Generado automáticamente el 7 de noviembre de 2025_  
-_TB-CNN - Sistema de Detección de Tuberculosis - USAT 2025_
+_LUNGNET - Sistema de Detección de Tuberculosis - USAT 2025_
