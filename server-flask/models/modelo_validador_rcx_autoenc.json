@@ -1,0 +1,11 @@
+{
+  "img_size": 224,
+  "percentile": 92.0,
+  "threshold": 0.0006823802577953091,
+  "threshold_method": "adaptive",
+  "arch": "EfficientConvAutoencoder",
+  "epochs_trained": 25,
+  "training_date": "2025-10-23T22:47:59.694334",
+  "final_train_loss": 0.0033827926564961672,
+  "final_val_loss": 0.003412955275426308
+}

@@ -36,6 +36,9 @@ function Pacientes() {
   });
   const [regPreview, setRegPreview] = useState(null);
   const [regLoading, setRegLoading] = useState(false);
+  const [regValidating, setRegValidating] = useState(false);
+  const [regValidated, setRegValidated] = useState(false);
+  const [regValidationError, setRegValidationError] = useState(null);
   const [editOpen, setEditOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({
     id: null,
@@ -235,6 +238,38 @@ function Pacientes() {
     if (file) {
       setRegFormData((prev) => ({ ...prev, imagen: file }));
       setRegPreview(URL.createObjectURL(file));
+      // reset previous validation state
+      setRegValidated(false);
+      setRegValidationError(null);
+      // trigger async validation but do not show modal here; only set states
+      (async () => {
+        try {
+          setRegValidating(true);
+          const fd = new FormData();
+          fd.append('imagen', file);
+          const res = await axios.post('http://localhost:5000/api/validacion/rcx', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+          if (res.data && typeof res.data.valid !== 'undefined') {
+            if (res.data.valid) {
+              setRegValidated(true);
+              setRegValidationError(null);
+            } else {
+              setRegValidated(false);
+              // Mensaje uniforme para todos los casos de fallo
+              setRegValidationError('La imagen no es una radiografía de tórax válida.');
+            }
+          } else {
+            setRegValidated(false);
+            setRegValidationError('Respuesta inválida del servidor de validación');
+          }
+        } catch (err) {
+          console.error('Error validando imagen RCX:', err);
+          setRegValidated(false);
+          // Mostrar el mensaje uniforme en caso de error de red/servidor
+          setRegValidationError('La imagen no es una radiografía de tórax válida.');
+        } finally {
+          setRegValidating(false);
+        }
+      })();
     }
   };
 
@@ -305,6 +340,9 @@ function Pacientes() {
   const resetRegForm = () => {
     setRegFormData({ nombre: "", apellido: "", fechaNacimiento: "", genero: "", dni: "", imagen: null });
     setRegPreview(null);
+    setRegValidated(false);
+    setRegValidating(false);
+    setRegValidationError(null);
   };
 
   const handleRegisterSubmit = async () => {
@@ -338,6 +376,16 @@ function Pacientes() {
       if (!id_usuario || !usuario) {
         setModal({ open: true, title: "Sesión", message: "No hay sesión activa." });
         setRegisterOpen(false);
+        return;
+      }
+
+      // Bloquear registro si la validación de la imagen está en curso o falló
+      if (regValidating) {
+        setModal({ open: true, title: "Validación", message: "La imagen aún se está validando. Por favor espere e intente nuevamente." });
+        return;
+      }
+      if (!regValidated) {
+        setModal({ open: true, title: "Validación", message: regValidationError || "La imagen no es una radiografía de tórax válida. Registro cancelado." });
         return;
       }
 
@@ -522,7 +570,7 @@ function Pacientes() {
 
                   <button
                     type="button"
-                    onClick={() => setRegisterOpen(true)}
+                    onClick={() => { resetRegForm(); setRegisterOpen(true); }}
                     className="flex items-center px-4 py-2 border border-gray-200 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
                   >
                     <Plus className="w-4 h-4 mr-2 text-teal-600" />
@@ -728,7 +776,7 @@ function Pacientes() {
             {/* Modal de registro inline */}
             {registerOpen && (
               <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-                <div className="absolute inset-0 bg-black opacity-40" onClick={() => setRegisterOpen(false)} />
+                <div className="absolute inset-0 bg-black opacity-40" onClick={() => { setRegisterOpen(false); resetRegForm(); }} />
                 <div className="relative z-10 w-full max-w-4xl mx-auto transform transition-all duration-200 ease-out scale-100">
                   <div className="bg-white rounded-xl shadow-2xl overflow-hidden max-h-[90vh]">
                     <div className="bg-gradient-to-r from-teal-50 to-white p-4 border-b">
@@ -742,7 +790,7 @@ function Pacientes() {
                             <p className="text-xs text-gray-500">Registra un nuevo paciente y sube la radiografía</p>
                           </div>
                         </div>
-                        <button onClick={() => setRegisterOpen(false)} className="p-2 rounded-md text-gray-500 hover:bg-gray-100">
+                        <button onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Cancelar? Se perderán los datos.', onConfirm: () => { setRegisterOpen(false); resetRegForm(); } })} className="p-2 rounded-md text-gray-500 hover:bg-gray-100">
                           <X className="w-5 h-5" />
                         </button>
                       </div>
@@ -793,6 +841,15 @@ function Pacientes() {
                             <div className="w-48 h-56 flex items-center justify-center text-gray-400 border-2 border-dashed rounded-md">Sin imagen</div>
                           )}
                         </div>
+                        <div className="flex items-center justify-center">
+                          {regValidating ? (
+                            <p className="text-sm text-gray-500 mt-2">Validando imagen...</p>
+                          ) : regValidated ? (
+                            <p className="text-sm text-green-600 mt-2">RCX validada</p>
+                          ) : regValidationError ? (
+                            <p className="text-sm text-red-600 mt-2">{regValidationError}</p>
+                          ) : null}
+                        </div>
                       </div>
 
                       <div className="flex justify-end gap-3 mt-6">
@@ -826,7 +883,7 @@ function Pacientes() {
                             <p className="text-xs text-gray-500">Modifica datos del paciente o sube una nueva radiografía (se analizará).</p>
                           </div>
                         </div>
-                        <button onClick={() => setEditOpen(false)} className="p-2 rounded-md text-gray-500 hover:bg-gray-100">
+                        <button onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Cancelar? Se perderán los cambios no guardados.', onConfirm: () => { setEditOpen(false); setEditPreview(null); setEditFormData({ id: null, nombre: '', apellido: '', fechaNacimiento: '', genero: '', dni: '', imagen: null }); } })} className="p-2 rounded-md text-gray-500 hover:bg-gray-100">
                           <X className="w-5 h-5" />
                         </button>
                       </div>

@@ -8,6 +8,7 @@ from routes.paciente import paciente_bp
 from routes.usuario import usuario_bp
 from routes.dashboard import dashboard
 from routes.radiografia import radiografia_bp
+from routes.validacion import validacion_bp
 
 app = Flask(__name__)
 CORS(app)
@@ -17,6 +18,7 @@ app.register_blueprint(paciente_bp, url_prefix='/api')
 app.register_blueprint(dashboard, url_prefix='/api')
 app.register_blueprint(radiografia_bp, url_prefix='/api')
 app.register_blueprint(usuario_bp, url_prefix='/api')
+app.register_blueprint(validacion_bp, url_prefix='/api')
 
 @app.route('/')
 def hello_world():

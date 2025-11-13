@@ -119,3 +119,147 @@ def infer_image(imagen_path):
         return {'porcentaje': porcentaje, 'nivel_confianza': porcentaje, 'simulado': False}
     except Exception as e:
         return {'error': str(e)}
+
+
+# -------------------------------
+# Validador RCX (autoencoder)
+# -------------------------------
+_VAL_MODEL = None
+_VAL_IMG_SIZE = None
+_VAL_THRESHOLD = None
+_VAL_DEVICE = None
+
+
+def load_validator_once(model_filename='modelo_validador_rcx_autoenc.pth', meta_filename='modelo_validador_rcx_autoenc.json'):
+    """Carga y cachea el autoencoder validador (reconstrucción). Devuelve (model, img_size, threshold, device, error)
+    """
+    global _VAL_MODEL, _VAL_IMG_SIZE, _VAL_THRESHOLD, _VAL_DEVICE
+    if _VAL_MODEL is not None:
+        return _VAL_MODEL, _VAL_IMG_SIZE, _VAL_THRESHOLD, _VAL_DEVICE, None
+    try:
+        import json
+        import pathlib
+        import torch
+        import torch.nn as nn
+        from torchvision import transforms
+        from PIL import Image
+
+        # default values
+        IMG_SIZE = 224
+        THRESHOLD = 0.0005621
+
+        base = os.path.dirname(os.path.dirname(__file__))
+        model_path = os.path.join(base, 'models', model_filename)
+        meta_path = os.path.join(base, 'models', meta_filename)
+
+        if os.path.exists(meta_path):
+            try:
+                meta = json.loads(pathlib.Path(meta_path).read_text(encoding='utf-8'))
+                IMG_SIZE = int(meta.get('img_size', IMG_SIZE))
+                THRESHOLD = float(meta.get('threshold', THRESHOLD))
+            except Exception:
+                pass
+
+        # define a small conv autoencoder fallback (compatible with training script)
+        class EfficientConvAutoencoder(nn.Module):
+            def __init__(self, img_size=IMG_SIZE):
+                super().__init__()
+                self.encoder = nn.Sequential(
+                    nn.Conv2d(3, 48, kernel_size=3, stride=2, padding=1),
+                    nn.BatchNorm2d(48),
+                    nn.ReLU(inplace=True),
+                    nn.Conv2d(48, 96, kernel_size=3, stride=2, padding=1),
+                    nn.BatchNorm2d(96),
+                    nn.ReLU(inplace=True),
+                    nn.Conv2d(96, 192, kernel_size=3, stride=2, padding=1),
+                    nn.ReLU(inplace=True),
+                )
+                self.decoder = nn.Sequential(
+                    nn.ConvTranspose2d(192, 96, kernel_size=4, stride=2, padding=1),
+                    nn.BatchNorm2d(96),
+                    nn.ReLU(inplace=True),
+                    nn.ConvTranspose2d(96, 48, kernel_size=4, stride=2, padding=1),
+                    nn.BatchNorm2d(48),
+                    nn.ReLU(inplace=True),
+                    nn.ConvTranspose2d(48, 3, kernel_size=4, stride=2, padding=1),
+                    nn.Sigmoid(),
+                )
+
+            def forward(self, x):
+                z = self.encoder(x)
+                out = self.decoder(z)
+                return out
+
+        # instantiate model
+        model = EfficientConvAutoencoder(img_size=IMG_SIZE)
+
+        if not os.path.exists(model_path):
+            return None, None, None, None, f'Validador no encontrado en {model_path}'
+
+        device = 'cpu'
+        model.load_state_dict(torch.load(model_path, map_location=device))
+        model.to(device)
+        model.eval()
+
+        _VAL_MODEL = model
+        _VAL_IMG_SIZE = IMG_SIZE
+        _VAL_THRESHOLD = THRESHOLD
+        _VAL_DEVICE = device
+        return _VAL_MODEL, _VAL_IMG_SIZE, _VAL_THRESHOLD, _VAL_DEVICE, None
+
+    except Exception as e:
+        return None, None, None, None, str(e)
+
+
+def validate_rcx_image(image_path, normalize_method='grayscale'):
+    """Valida una imagen con el validador autoencoder.
+    Retorna dict: { diagnostico, mse, mae, confianza }
+    """
+    try:
+        import torch
+        from PIL import Image, ImageOps
+        import numpy as np
+
+        model, img_size, threshold, device, err = load_validator_once()
+        if err:
+            return {'error': err}
+        if model is None:
+            return {'error': 'Modelo validador no disponible'}
+
+        # load image
+        img = Image.open(image_path).convert('RGB')
+
+        # normalization methods (follow training script)
+        def normalizar_tonos_pil(img_local):
+            gray = ImageOps.grayscale(img_local)
+            eq = ImageOps.equalize(gray)
+            return Image.merge('RGB', (eq, eq, eq))
+
+        if normalize_method and normalize_method != 'none':
+            img = normalizar_tonos_pil(img)
+
+        transform = transforms = __import__('torchvision').transforms.Compose([
+            __import__('torchvision').transforms.Resize((img_size, img_size)),
+            __import__('torchvision').transforms.ToTensor(),
+        ])
+
+        tensor_img = transform(img).unsqueeze(0).to(device)
+
+        with torch.no_grad():
+            recon = model(tensor_img)
+            mse = float(torch.mean((recon - tensor_img) ** 2).item())
+            mae = float(torch.mean(torch.abs(recon - tensor_img)).item())
+
+        diagnostico = 'RCX' if mse <= threshold else 'NO RCX'
+        confianza = 1 - min(mse / (threshold * 2), 1.0)
+
+        return {
+            'diagnostico': diagnostico,
+            'mse': mse,
+            'mae': mae,
+            'threshold': threshold,
+            'confianza': confianza,
+        }
+
+    except Exception as e:
+        return {'error': str(e)}
