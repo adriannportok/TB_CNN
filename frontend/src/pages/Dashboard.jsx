@@ -90,20 +90,32 @@ function Dashboard() {
                                    stats.riesgo_distribucion.medio + 
                                    stats.riesgo_distribucion.bajo;
 
+  // Prepare bar data: convert percentage fields to counts using total_analisis
+  const barData = (stats.stats_mensuales || []).map((d) => {
+    const total = Number(d.total_analisis || 0);
+    const posPct = Number(d.porcentaje_positivos || 0);
+    const negPct = Number(d.porcentaje_negativos || 0);
+    const positivos_count = Math.round((posPct / 100) * total);
+    const negativos_count = Math.round((negPct / 100) * total);
+    return { ...d, positivos_count, negativos_count };
+  });
+
   
   const CustomBarTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       const total = data.total_analisis || 0;
-      
+
       return (
         <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
           <p className="font-semibold mb-2">{data.mes}</p>
           {payload.map((entry, index) => {
-            const count = Math.round((entry.value / 100) * total);
+            // entry.value now represents count (not percentage)
+            const count = Number(entry.value) || 0;
+            const pct = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0';
             return (
               <p key={index} style={{ color: entry.color }}>
-                {entry.name}: {count} ({entry.value.toFixed(1)}%)
+                {entry.name}: {count} ({pct}%)
               </p>
             );
           })}
@@ -221,7 +233,7 @@ function Dashboard() {
               <div>
                 <p className="text-gray-500 text-sm">Tasa de positividad según total de análisis</p>
                 <h2 className="text-2xl font-extrabold text-gray-900">{formatPercent(stats.tasa_positividad)}</h2>
-                <p className="text-xs text-gray-400 mt-1">{`${stats.predicciones_positivas ?? 0} mayores a 50% / ${stats.total_analisis_periodo ?? 0} total analizados`}</p>
+                <p className="text-xs text-gray-400 mt-1">{`${stats.predicciones_positivas ?? 0} análisis mayores a 50% / ${stats.total_analisis_periodo ?? 0} análisis totales`}</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center ring-1 ring-gray-200">
                 <Target className="w-6 h-6 text-teal-600" />
@@ -234,13 +246,13 @@ function Dashboard() {
             <h3 className="text-lg font-semibold mb-4">
               {(() => {
                 const map = {
-                  '24h': 'las últimas 24 hrs',
-                  '7d': 'la última semana',
-                  '1m': 'el último mes',
-                  '6m': 'los últimos seis meses',
-                  '1y': 'el último año',
+                  '24h': ' las últimas 24 hrs',
+                  '7d': ' la última semana',
+                  '1m': 'l último mes',
+                  '6m': ' los últimos seis meses',
+                  '1y': 'l último año',
                 };
-                return `Análisis de ${map[rangoTemporal] || 'período seleccionado'}`;
+                return `Análisis de${map[rangoTemporal] || 'período seleccionado'}`;
               })()}
             </h3>
             <p className="text-sm text-gray-600 mb-4">
@@ -269,11 +281,12 @@ function Dashboard() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
                   <XAxis dataKey="mes" />
-                  <YAxis label={{ value: 'Porcentaje (%)', angle: -90, position: 'insideLeft' }} />
+                  <YAxis label={{ value: 'Cantidad', angle: -90, position: 'insideLeft' }} />
                   <Tooltip content={<CustomBarTooltip />} />
                   <Legend />
-                  <Bar name="Mayor al 50%" dataKey="porcentaje_positivos" fill="url(#gradPos)" radius={[8,8,0,0]} barSize={34} />
-                  <Bar name="Menor o igual al 50%" dataKey="porcentaje_negativos" fill="url(#gradNeg)" radius={[8,8,0,0]} barSize={34} />
+                  {/** Build counts from percentages and total_analisis */}
+                  <Bar name="Mayor al 50%" dataKey="positivos_count" fill="url(#gradPos)" radius={[8,8,0,0]} barSize={40} />
+                  <Bar name="Menor o igual al 50%" dataKey="negativos_count" fill="url(#gradNeg)" radius={[8,8,0,0]} barSize={40} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

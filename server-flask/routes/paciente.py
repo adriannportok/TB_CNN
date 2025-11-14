@@ -12,8 +12,11 @@ def get_pacientes():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+        # permitir filtrar por id_usuario o por nombre de usuario (usuario)
+        id_usuario = request.args.get('id_usuario')
+        usuario = request.args.get('usuario')
 
-        query = """
+        base_query = """
         SELECT 
             p.id_paciente,
             p.nombres,
@@ -23,23 +26,40 @@ def get_pacientes():
             p.edad,
             p.fecha_nac,
             p.fecha_registro,
-            COALESCE(pr.porcentaje, 0) AS porcentaje,
-            CASE 
-                WHEN pr.porcentaje IS NOT NULL THEN 'Analizado'
+            CASE
+                WHEN EXISTS (SELECT 1 FROM prediccion p2 WHERE p2.id_paciente = p.id_paciente AND p2.porcentaje IS NULL) THEN NULL
+                ELSE pr_last.porcentaje
+            END AS porcentaje,
+            CASE
+                WHEN EXISTS (SELECT 1 FROM prediccion p2 WHERE p2.id_paciente = p.id_paciente AND p2.porcentaje IS NULL) THEN 'Pendiente'
+                WHEN pr_last.porcentaje IS NOT NULL THEN 'Analizado'
                 ELSE 'Pendiente'
             END AS estado_analisis
         FROM paciente p
         LEFT JOIN LATERAL (
             SELECT porcentaje
             FROM prediccion
-            WHERE prediccion.id_paciente = p.id_paciente
-            ORDER BY fecha_pred DESC
+            WHERE prediccion.id_paciente = p.id_paciente AND porcentaje IS NOT NULL
+            ORDER BY fecha_pred DESC NULLS LAST
             LIMIT 1
-        ) pr ON true
-        ORDER BY p.id_paciente DESC;
+        ) pr_last ON true
         """
 
-        cur.execute(query)
+        params = []
+        if id_usuario:
+            base_query += " WHERE p.id_usuario = %s"
+            params.append(id_usuario)
+        elif usuario:
+            # resolver usuario -> id_usuario
+            cur.execute("SELECT id_usuario FROM usuario WHERE usuario = %s", (usuario,))
+            r = cur.fetchone()
+            if r:
+                base_query += " WHERE p.id_usuario = %s"
+                params.append(r[0])
+
+        base_query += " ORDER BY p.id_paciente DESC"
+
+        cur.execute(base_query, tuple(params) if params else None)
         rows = cur.fetchall()
 
         pacientes = [
@@ -232,13 +252,36 @@ def actualizar_paciente(id_paciente):
             sql = f"UPDATE paciente SET {', '.join(updates)} WHERE id_paciente = %s"
             cur.execute(sql, tuple(params))
 
-        # If an image is provided, save it and create a new prediccion (new radiografia -> pendiente)
+        # If an image is provided, save it and REPLACE the last prediccion's image (do not create a new prediccion)
         if imagen:
             filename = secure_filename(f"{dni or 'pac'}_{datetime.now().strftime('%Y%m%d%H%M%S')}.png")
             upload_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', filename)
             imagen.save(upload_path)
             ruta_imagen = f'uploads/{filename}'
-            cur.execute("INSERT INTO prediccion (ruta_imagen, id_paciente) VALUES (%s, %s)", (ruta_imagen, id_paciente))
+
+            # find the most recent prediccion for this paciente
+            cur.execute("SELECT id_pred, ruta_imagen FROM prediccion WHERE id_paciente = %s ORDER BY fecha_pred DESC LIMIT 1", (id_paciente,))
+            last = cur.fetchone()
+            if last:
+                last_id_pred = last[0]
+                old_ruta = last[1]
+                # try to remove old image file if present and is inside uploads
+                try:
+                    if old_ruta:
+                        base_dir = os.path.dirname(os.path.dirname(__file__))
+                        old_path = os.path.abspath(os.path.join(base_dir, old_ruta))
+                        # only remove files inside the uploads folder for safety
+                        uploads_dir = os.path.abspath(os.path.join(base_dir, 'uploads'))
+                        if os.path.commonpath([old_path, uploads_dir]) == uploads_dir and os.path.exists(old_path):
+                            os.remove(old_path)
+                except Exception:
+                    pass
+
+                # update the existing prediccion to point to the new image and mark as pending
+                cur.execute("UPDATE prediccion SET ruta_imagen = %s, porcentaje = NULL, fecha_pred = NULL WHERE id_pred = %s", (ruta_imagen, last_id_pred))
+            else:
+                # no existing prediccion -> insert new row
+                cur.execute("INSERT INTO prediccion (ruta_imagen, id_paciente) VALUES (%s, %s)", (ruta_imagen, id_paciente))
 
         conn.commit()
         cur.close()

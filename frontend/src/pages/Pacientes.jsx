@@ -1,10 +1,9 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import Layout from "../components/Layouts";
 import axios from "axios";
 import { FileText } from "lucide-react";
 import html2pdf from "html2pdf.js";
 import { Pencil, Trash2, ChevronDown, Plus, X } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import AlertModal from "../components/AlertModal";
 
 function Pacientes() {
@@ -24,7 +23,7 @@ function Pacientes() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const pageSizes = [5, 10, 25, 50];
-  const navigate = useNavigate();
+  
   const [registerOpen, setRegisterOpen] = useState(false);
   const [regFormData, setRegFormData] = useState({
     nombre: "",
@@ -58,7 +57,11 @@ function Pacientes() {
 
   const fetchPacientes = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/pacientes");
+      // solicitar pacientes filtrados por el usuario médico si está en sesión
+      const id_usuario = localStorage.getItem('id_usuario');
+      const params = {};
+      if (id_usuario) params.id_usuario = id_usuario;
+      const res = await axios.get("http://localhost:5000/api/pacientes", { params });
       if (Array.isArray(res.data)) {
         const data = res.data.map((p) => ({
           id: p.id_paciente,
@@ -164,59 +167,191 @@ function Pacientes() {
   };
 
   const handleGuardarPDF = () => {
-    const element = document.getElementById("pdf-content");
-    if (!element) {
-      setModal({
-        open: true,
-        title: "Error",
-        message: "No se encontró el contenido a guardar.",
+    // Construir una tabla temporal que incluya SOLO las columnas solicitadas:
+    // Nombre Completo, DNI, Fecha de nacimiento, Edad, Sexo, Confianza
+    try {
+      const tempContainer = document.createElement('div');
+      tempContainer.setAttribute('id', 'pdf-temp-content');
+      tempContainer.style.padding = '12px';
+      tempContainer.style.background = '#ffffff';
+
+      // Header: centered title, then a row with medico (left) and fecha (right)
+      const title = document.createElement('h2');
+      title.textContent = 'Listado de Pacientes';
+      title.style.fontFamily = 'Arial, Helvetica, sans-serif';
+      title.style.margin = '0';
+      title.style.padding = '0';
+      title.style.fontSize = '18px';
+      title.style.fontWeight = '700';
+      title.style.textAlign = 'center';
+      title.style.marginBottom = '6px';
+
+      const metaRow = document.createElement('div');
+      metaRow.style.display = 'flex';
+      metaRow.style.justifyContent = 'space-between';
+      metaRow.style.alignItems = 'center';
+      metaRow.style.marginBottom = '10px';
+      metaRow.style.fontFamily = 'Arial, Helvetica, sans-serif';
+      metaRow.style.fontSize = '12px';
+      metaRow.style.color = '#374151';
+
+      const medicoSpan = document.createElement('div');
+      // Extraer un nombre legible del localStorage: primero comprobar claves separadas 'nombres' + 'apellidos'
+      let medicoNombre = '';
+      const nombresLS = localStorage.getItem('nombres');
+      const apellidosLS = localStorage.getItem('apellidos');
+      if (nombresLS || apellidosLS) {
+        medicoNombre = `${nombresLS || ''} ${apellidosLS || ''}`.trim();
+      }
+      // Si no hay nombre completo separado, intentar parsear objetos/otras claves
+      const keysToTry = ['userData', 'usuario_data', 'usuario', 'user', 'username'];
+      for (const key of keysToTry) {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        if (medicoNombre) break;
+        try {
+          const parsed = JSON.parse(raw);
+          if (!parsed) continue;
+          if (parsed.nombres && parsed.apellidos) {
+            medicoNombre = `${parsed.nombres} ${parsed.apellidos}`.trim();
+            break;
+          }
+          // combinar campos comunes 'nombre' + 'apellido' si existen
+          if (parsed.nombre && parsed.apellido) {
+            medicoNombre = `${parsed.nombre} ${parsed.apellido}`.trim();
+            break;
+          }
+          if (parsed.nombre) {
+            medicoNombre = parsed.nombre;
+            break;
+          }
+          if (parsed.nombreCompleto) {
+            medicoNombre = parsed.nombreCompleto;
+            break;
+          }
+          if (parsed.displayName) {
+            medicoNombre = parsed.displayName;
+            break;
+          }
+          if (parsed.usuario) {
+            medicoNombre = parsed.usuario;
+            break;
+          }
+          if (parsed.username) {
+            medicoNombre = parsed.username;
+            break;
+          }
+        } catch (e) {
+          // no JSON, usar el valor bruto
+          medicoNombre = raw;
+          break;
+        }
+      }
+      // Si no se encontró en las claves anteriores, intentar obtener cualquier otro valor común
+      if (!medicoNombre) {
+        medicoNombre = (localStorage.getItem('usuario') || localStorage.getItem('username') || localStorage.getItem('user') || '').toString();
+      }
+      medicoSpan.textContent = medicoNombre ? `Médico a cargo: ${medicoNombre}` : 'Médico a cargo: -';
+
+      const fechaSpan = document.createElement('div');
+      const now = new Date();
+      const fechaStr = now.toLocaleString('es-PE', { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+      fechaSpan.textContent = `Fecha descarga: ${fechaStr}`;
+
+      metaRow.appendChild(medicoSpan);
+      metaRow.appendChild(fechaSpan);
+
+      tempContainer.appendChild(title);
+      tempContainer.appendChild(metaRow);
+
+      const table = document.createElement('table');
+      table.style.width = '100%';
+      table.style.borderCollapse = 'collapse';
+      table.style.fontFamily = 'Arial, Helvetica, sans-serif';
+
+      const thead = document.createElement('thead');
+      const headerRow = document.createElement('tr');
+      ['Nombre Completo', 'DNI', 'Fecha de Nacimiento', 'Edad', 'Sexo', 'Peligro'].forEach(h => {
+        const th = document.createElement('th');
+        th.textContent = h;
+        th.style.border = '1px solid #ddd';
+        th.style.padding = '6px 8px';
+        th.style.background = '#f3f4f6';
+        th.style.fontSize = '12px';
+        th.style.textAlign = 'left';
+        headerRow.appendChild(th);
       });
-      return;
-    }
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
 
-    const css = `
-    #pdf-content, #pdf-content * {
-      color: #000 !important;
-      background: #fff !important;
-      border-color: #ddd !important;
-      box-shadow: none !important;
-      background-image: none !important;
-      filter: none !important;
-      -webkit-text-fill-color: #000 !important;
-    }
-    /* Asegurar tablas y celdas visibles */
-    #pdf-content table { border-collapse: collapse !important; }
-    #pdf-content th, #pdf-content td { border: 1px solid #ddd !important; background: #fff !important; color: #000 !important; }
-  `;
+      const tbody = document.createElement('tbody');
 
-    const styleEl = document.createElement("style");
-    styleEl.setAttribute("data-temp-pdf-style", "1");
-    styleEl.appendChild(document.createTextNode(css));
-    document.head.appendChild(styleEl);
-
-    const opt = {
-      margin: 0.5,
-      filename: "listado_pacientes.pdf",
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, allowTaint: true },
-      jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
-    };
-
-    html2pdf()
-      .set(opt)
-      .from(element)
-      .save()
-      .then(() => {
-        document.head.removeChild(styleEl);
-      })
-      .catch((err) => {
-        setModal({
-          open: true,
-          title: "Error",
-          message: "Error al generar PDF.",
+      // Usar solo la página visible para el PDF
+      const pageItems = (pacientesFiltrados || []).slice((page - 1) * pageSize, page * pageSize);
+      pageItems.forEach((p) => {
+        const tr = document.createElement('tr');
+        const cells = [
+          p.nombreCompleto || '-',
+          p.dni || '-',
+          p.fechaNacimiento ? formatearFecha(p.fechaNacimiento) : '-',
+          p.edad ?? '-',
+          p.sexo || '-',
+          formatearConfianza(p.porcentaje),
+        ];
+        cells.forEach(text => {
+          const td = document.createElement('td');
+          td.textContent = text;
+          td.style.border = '1px solid #ddd';
+          td.style.padding = '6px 8px';
+          td.style.fontSize = '12px';
+          td.style.color = '#000';
+          td.style.background = '#fff';
+          tr.appendChild(td);
         });
-        if (styleEl.parentNode) document.head.removeChild(styleEl);
+        tbody.appendChild(tr);
       });
+
+      table.appendChild(tbody);
+      tempContainer.appendChild(table);
+
+      // Estilos temporales para asegurar visibilidad en PDF
+      const css = `
+        #pdf-temp-content, #pdf-temp-content * { color: #000 !important; background: #fff !important; }
+        #pdf-temp-content table { border-collapse: collapse !important; }
+        #pdf-temp-content th, #pdf-temp-content td { border: 1px solid #ddd !important; background: #fff !important; color: #000 !important; }
+      `;
+      const styleEl = document.createElement('style');
+      styleEl.setAttribute('data-temp-pdf-style', '1');
+      styleEl.appendChild(document.createTextNode(css));
+      document.head.appendChild(styleEl);
+
+      document.body.appendChild(tempContainer);
+
+      const opt = {
+        margin: 0.5,
+        filename: 'listado_pacientes.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, allowTaint: true },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+      };
+
+      html2pdf()
+        .set(opt)
+        .from(tempContainer)
+        .save()
+        .then(() => {
+          // limpieza
+          if (styleEl.parentNode) document.head.removeChild(styleEl);
+          if (tempContainer.parentNode) document.body.removeChild(tempContainer);
+        })
+        .catch((err) => {
+          setModal({ open: true, title: 'Error', message: 'Error al generar PDF.' });
+          if (styleEl.parentNode) document.head.removeChild(styleEl);
+          if (tempContainer.parentNode) document.body.removeChild(tempContainer);
+        });
+    } catch (err) {
+      setModal({ open: true, title: 'Error', message: 'Error al generar PDF.' });
+    }
   };
 
   // Registro dentro de modal
@@ -469,7 +604,7 @@ function Pacientes() {
   );
 
   return (
-    <Layout title="Listado de Pacientes">
+    <Layout title="Gestión de Pacientes">
       <div className="px-2 sm:px-4 py-2">
         <div className="mb-4">
           <h2 className="text-left font-bold text-gray-700">
@@ -561,7 +696,15 @@ function Pacientes() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={handleGuardarPDF}
+                    onClick={() => {
+                      const visibleCount = (pacientesFiltrados || []).slice((page - 1) * pageSize, page * pageSize).length;
+                      setModal({
+                        open: true,
+                        title: 'Confirmar',
+                        message: `¿Generar PDF con ${visibleCount} paciente(s) visibles en la página?`,
+                        onConfirm: handleGuardarPDF,
+                      });
+                    }}
                     className="flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                   >
                     <FileText className="w-4 h-4 mr-2 text-white" />
@@ -584,7 +727,7 @@ function Pacientes() {
             <div className="flex items-start justify-between mb-2">
               <h3 className="text-lg font-semibold text-gray-900 mb-0 flex items-center">
                 <span className="w-1 h-5 bg-teal-600 mr-3 rounded"></span>
-                Lista de Pacientes
+                Pacientes y Análisis
               </h3>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">
@@ -631,7 +774,7 @@ function Pacientes() {
                       Estado Análisis
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Confianza
+                      Peligro
                     </th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Acciones
@@ -663,17 +806,14 @@ function Pacientes() {
                               {paciente.sexo}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              <span
-                                className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                  paciente.porcentaje && paciente.porcentaje > 0
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-yellow-100 text-yellow-800"
-                                }`}
-                              >
-                                {paciente.porcentaje && paciente.porcentaje > 0
-                                  ? "Analizado"
-                                  : "Pendiente"}
-                              </span>
+                              {(() => {
+                                const hasAnalisis = paciente.porcentaje !== null && typeof paciente.porcentaje !== 'undefined';
+                                return (
+                                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${hasAnalisis ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>
+                                    {hasAnalisis ? "Analizado" : "Pendiente"}
+                                  </span>
+                                );
+                              })()}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               {formatearConfianza(paciente.porcentaje)}
@@ -682,7 +822,7 @@ function Pacientes() {
                             <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
                               <div className="flex justify-center items-center gap-3">
                                 {(() => {
-                                  const hasAnalisis = paciente.porcentaje && paciente.porcentaje > 0;
+                                  const hasAnalisis = paciente.porcentaje !== null && typeof paciente.porcentaje !== 'undefined';
                                   return (
                                     <button
                                       onClick={() => hasAnalisis && toggleMostrarPredicciones(paciente.id)}

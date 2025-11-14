@@ -41,8 +41,7 @@ function AnalisisRadiografia() {
   }, []);
 
   useEffect(() => {
-    fetchPacientesAnalizados();
-    fetchPacientesPendientes();
+    fetchAnalisis();
   }, []);
 
   useEffect(() => {
@@ -56,23 +55,27 @@ function AnalisisRadiografia() {
     };
   }, [pacienteSeleccionado]);
 
-  const fetchPacientesAnalizados = async () => {
+  const fetchAnalisis = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/api/analisis/pacientes`);
-      setPacientesAnalizados(response.data || []);
+      const usuario = localStorage.getItem('usuario');
+      if (!usuario) {
+        console.warn('fetchAnalisis: no hay usuario en localStorage');
+        setPacientesAnalizados([]);
+        setPacientesPendientes([]);
+        return;
+      }
+      const response = await axios.get(`${API_BASE}/api/analisis`, { params: { usuario } });
+      if (response.data) {
+        setPacientesPendientes(response.data.pendientes || []);
+        setPacientesAnalizados(response.data.realizados || []);
+      } else {
+        setPacientesAnalizados([]);
+        setPacientesPendientes([]);
+      }
     } catch (error) {
-      console.error("Error al obtener pacientes analizados:", error);
-    }
-  };
-
-  
-
-  const fetchPacientesPendientes = async () => {
-    try {
-      const response = await axios.get(`${API_BASE}/api/analisis/pacientes/pendientes`);
-      setPacientesPendientes(response.data || []);
-    } catch (error) {
-      console.error("Error al obtener pacientes pendientes:", error);
+      console.error("Error al obtener análisis (pendientes/realizados):", error);
+      setPacientesAnalizados([]);
+      setPacientesPendientes([]);
     }
   };
 
@@ -100,14 +103,16 @@ function AnalisisRadiografia() {
     setLoadingPredId(id_pred);
     try {
       const response = await axios.post(`${API_BASE}/api/analisis/ejecutar/${id_pred}`);
-      if (response.status === 200) {
+        if (response.status === 200) {
         const { porcentaje, nivel_confianza, simulado } = response.data;
+        const pctText = porcentaje !== null && porcentaje !== undefined ? `${Number(porcentaje).toFixed(2)}%` : 'N/A';
+        const confText = nivel_confianza !== null && nivel_confianza !== undefined ? `${nivel_confianza}` : 'N/A';
         const message = simulado
-          ? `Análisis simulado: ${Number(porcentaje).toFixed(2)}%`
-          : `Análisis completado: ${Number(porcentaje).toFixed(2)}%\nConfianza: ${nivel_confianza}`;
+          ? `Análisis simulado: ${pctText}`
+          : `Análisis completado: ${pctText}\nConfianza: ${confText}`;
         openModal({ title: simulado ? "Análisis simulado" : "Análisis completado", message, type: simulado ? "warning" : "success" });
-        await fetchPacientesAnalizados();
-        await fetchPacientesPendientes();
+        // refresh lists (pendientes y realizados)
+        await fetchAnalisis();
       }
     } catch (error) {
       console.error("Error en el análisis:", error);

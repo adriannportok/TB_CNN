@@ -36,6 +36,20 @@ function Login() {
       const data = await response.json();
 
       if (data.success) {
+        // limpiar valores previos relevantes y registrar el nuevo usuario
+        try {
+          localStorage.removeItem('token');
+          localStorage.removeItem('usuario');
+          localStorage.removeItem('id_usuario');
+          localStorage.removeItem('rol');
+          localStorage.removeItem('nombres');
+          localStorage.removeItem('apellidos');
+        } catch (e) {
+          // ignore
+        }
+
+        console.log('Login response:', data);
+
         localStorage.setItem('token', data.token);
         localStorage.setItem('usuario', formData.usuario);
         localStorage.setItem('id_usuario', data.id_usuario);

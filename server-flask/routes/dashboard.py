@@ -222,10 +222,11 @@ def get_dashboard_stats():
             gran = 'day'
             fmt = 'YYYY-MM-DD'
 
+        # Return counts per period (positives, negatives) and total analyses
         sql_stats = f"""
             SELECT TO_CHAR(date_trunc('{gran}', p.fecha_pred), '{fmt}') as mes,
-                   COUNT(CASE WHEN p.porcentaje > 50 THEN 1 END)::FLOAT / NULLIF(COUNT(p.porcentaje),0) * 100 as porcentaje_positivos,
-                   COUNT(CASE WHEN p.porcentaje <= 50 THEN 1 END)::FLOAT / NULLIF(COUNT(p.porcentaje),0) * 100 as porcentaje_negativos,
+                   COUNT(CASE WHEN p.porcentaje > 50 THEN 1 END) as positivos_count,
+                   COUNT(CASE WHEN p.porcentaje <= 50 THEN 1 END) as negativos_count,
                    COUNT(p.porcentaje) as total_analisis
             FROM prediccion p
             JOIN paciente pac ON p.id_paciente = pac.id_paciente
@@ -239,9 +240,9 @@ def get_dashboard_stats():
 
         if gran == 'month':
             row_map = {row[0]: {
-                "porcentaje_positivos": float(row[1]) if row[1] is not None else 0.0,
-                "porcentaje_negativos": float(row[2]) if row[2] is not None else 0.0,
-                "total_analisis": row[3] or 0,
+                "positivos_count": int(row[1]) if row[1] is not None else 0,
+                "negativos_count": int(row[2]) if row[2] is not None else 0,
+                "total_analisis": int(row[3]) or 0,
             } for row in rows}
 
             stats_mensuales = []
@@ -250,14 +251,14 @@ def get_dashboard_stats():
             while curr <= end_month:
                 label = curr.strftime('%Y-%m')
                 values = row_map.get(label, {
-                    "porcentaje_positivos": 0.0,
-                    "porcentaje_negativos": 0.0,
+                    "positivos_count": 0,
+                    "negativos_count": 0,
                     "total_analisis": 0,
                 })
                 stats_mensuales.append({
                     "mes": label,
-                    "porcentaje_positivos": values["porcentaje_positivos"],
-                    "porcentaje_negativos": values["porcentaje_negativos"],
+                    "positivos_count": values["positivos_count"],
+                    "negativos_count": values["negativos_count"],
                     "total_analisis": values["total_analisis"],
                 })
                 curr = _add_months(curr, 1)
@@ -265,9 +266,9 @@ def get_dashboard_stats():
             stats_mensuales = [
                 {
                     "mes": row[0],
-                    "porcentaje_positivos": float(row[1]) if row[1] is not None else 0.0,
-                    "porcentaje_negativos": float(row[2]) if row[2] is not None else 0.0,
-                    "total_analisis": row[3],
+                    "positivos_count": int(row[1]) if row[1] is not None else 0,
+                    "negativos_count": int(row[2]) if row[2] is not None else 0,
+                    "total_analisis": int(row[3]) if row[3] is not None else 0,
                 }
                 for row in rows
             ]

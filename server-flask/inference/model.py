@@ -78,7 +78,13 @@ def load_model_once():
             return None, None, _MODEL_ERROR
 
         device = 'cpu'
-        model.load_state_dict(torch.load(model_path, map_location=device))
+        # Intentamos cargar sólo los tensores (más seguro) si la versión de torch lo soporta.
+        try:
+            state = torch.load(model_path, map_location=device, weights_only=True)
+        except TypeError:
+            # Versión antigua de torch que no soporta weights_only
+            state = torch.load(model_path, map_location=device)
+        model.load_state_dict(state)
         model.eval()
 
         preprocess = transforms.Compose([
@@ -197,7 +203,11 @@ def load_validator_once(model_filename='modelo_validador_rcx_autoenc.pth', meta_
             return None, None, None, None, f'Validador no encontrado en {model_path}'
 
         device = 'cpu'
-        model.load_state_dict(torch.load(model_path, map_location=device))
+        try:
+            state = torch.load(model_path, map_location=device, weights_only=True)
+        except TypeError:
+            state = torch.load(model_path, map_location=device)
+        model.load_state_dict(state)
         model.to(device)
         model.eval()
 

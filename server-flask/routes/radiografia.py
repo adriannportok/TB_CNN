@@ -32,7 +32,7 @@ def listar_analisis():
         # pendientes
         cur.execute(
             """
-            SELECT p.id_pred, p.ruta_imagen, p.fecha_pred, pac.id_paciente, pac.nombres, pac.apellidos
+            SELECT p.id_pred, p.ruta_imagen, p.fecha_pred, pac.id_paciente, pac.nombres, pac.apellidos, pac.dni, pac.fecha_registro
             FROM prediccion p
             JOIN paciente pac ON p.id_paciente = pac.id_paciente
             WHERE pac.id_usuario = %s AND p.porcentaje IS NULL
@@ -48,6 +48,10 @@ def listar_analisis():
                 "ruta_imagen": row[1],
                 "fecha_pred": row[2].strftime('%Y-%m-%d %H:%M:%S') if row[2] else None,
                 "id_paciente": row[3],
+                "nombres": row[4],
+                "apellidos": row[5],
+                "dni": row[6] if len(row) > 6 else None,
+                "fecha_registro": row[7].strftime('%Y-%m-%d %H:%M:%S') if len(row) > 7 and row[7] else None,
                 "nombre_paciente": f"{row[4]} {row[5]}"
             }
             for row in pendientes_rows
@@ -56,7 +60,7 @@ def listar_analisis():
         # realizados
         cur.execute(
             """
-            SELECT p.id_pred, p.ruta_imagen, p.fecha_pred, p.porcentaje, pac.id_paciente, pac.nombres, pac.apellidos
+            SELECT p.id_pred, p.ruta_imagen, p.fecha_pred, p.porcentaje, pac.id_paciente, pac.nombres, pac.apellidos, pac.dni, pac.fecha_registro
             FROM prediccion p
             JOIN paciente pac ON p.id_paciente = pac.id_paciente
             WHERE pac.id_usuario = %s AND p.porcentaje IS NOT NULL
@@ -74,6 +78,10 @@ def listar_analisis():
                 "fecha_pred": row[2].strftime('%Y-%m-%d %H:%M:%S') if row[2] else None,
                 "porcentaje": float(row[3]) if row[3] is not None else None,
                 "id_paciente": row[4],
+                "nombres": row[5],
+                "apellidos": row[6],
+                "dni": row[7] if len(row) > 7 else None,
+                "fecha_registro": row[8].strftime('%Y-%m-%d %H:%M:%S') if len(row) > 8 and row[8] else None,
                 "nombre_paciente": f"{row[5]} {row[6]}"
             }
             for row in hechos_rows
@@ -167,8 +175,9 @@ def predicciones_por_paciente(id_paciente):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+        # Only return completed analyses (porcentaje IS NOT NULL) for the history
         cur.execute(
-            "SELECT id_pred, porcentaje, ruta_imagen, fecha_pred FROM prediccion WHERE id_paciente = %s ORDER BY fecha_pred DESC",
+            "SELECT id_pred, porcentaje, ruta_imagen, fecha_pred FROM prediccion WHERE id_paciente = %s AND porcentaje IS NOT NULL ORDER BY fecha_pred DESC",
             (id_paciente,)
         )
         rows = cur.fetchall()
