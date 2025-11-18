@@ -29,7 +29,6 @@ def listar_analisis():
             return jsonify({"error": "Médico no encontrado"}), 404
         medico_id = res[0]
 
-        # pendientes
         cur.execute(
             """
             SELECT p.id_pred, p.ruta_imagen, p.fecha_pred, pac.id_paciente, pac.nombres, pac.apellidos, pac.dni, pac.fecha_registro
@@ -57,7 +56,6 @@ def listar_analisis():
             for row in pendientes_rows
         ]
 
-        # realizados
         cur.execute(
             """
             SELECT p.id_pred, p.ruta_imagen, p.fecha_pred, p.porcentaje, pac.id_paciente, pac.nombres, pac.apellidos, pac.dni, pac.fecha_registro
@@ -102,7 +100,6 @@ def listar_pacientes_analizados():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        # lista de pacientes con su última predicción (si existe)
         cur.execute(
             """
             SELECT pac.id_paciente, pac.nombres, pac.apellidos, pac.dni, pac.fecha_registro,
@@ -175,7 +172,6 @@ def predicciones_por_paciente(id_paciente):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        # Only return completed analyses (porcentaje IS NOT NULL) for the history
         cur.execute(
             "SELECT id_pred, porcentaje, ruta_imagen, fecha_pred FROM prediccion WHERE id_paciente = %s AND porcentaje IS NOT NULL ORDER BY fecha_pred DESC",
             (id_paciente,)
@@ -241,7 +237,6 @@ def ejecutar_prediccion_por_id(id_pred):
         if not os.path.exists(imagen_path):
             return jsonify({'error': f'Archivo no encontrado: {imagen_path}'}), 404
 
-        # delegar la inferencia al módulo de inferencia
         try:
             from inference.model import infer_image
         except Exception as e:
@@ -265,7 +260,6 @@ def ejecutar_prediccion_por_id(id_pred):
         cur.close()
         conn.close()
 
-        # nivel_confianza: por simplicidad devolvemos mismo porcentaje
         return jsonify({
             'porcentaje': float(updated[3]) if updated and updated[3] is not None else None,
             'nivel_confianza': float(updated[3]) if updated and updated[3] is not None else None,

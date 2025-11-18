@@ -146,10 +146,6 @@ function AnalisisRadiografia() {
           </div>
         )}
 
-        <div className="mb-4">
-          <h2 className="text-left font-bold text-gray-700"> Radiografía para análisis automático </h2>
-        </div>
-
         <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-6 w-full mb-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
             <h3 className="text-lg font-semibold text-gray-900 flex items-center">

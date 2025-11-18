@@ -28,7 +28,6 @@ def validar_credenciales(usuario, clave):
         id_usuario, clave_hash, rol, nombres, apellidos = result
         print(f"[auth] validar_credenciales: encontrado id={id_usuario} rol={rol} nombres={nombres} apellidos={apellidos}")
 
-        # Intentar verificación con werkzeug primero
         try:
             if check_password_hash(clave_hash, clave):
                 print(f"[auth] validar_credenciales: password ok para usuario='{usuario}' id={id_usuario}")
@@ -39,7 +38,6 @@ def validar_credenciales(usuario, clave):
         except Exception as e:
             print(f"[auth] validar_credenciales: excepción check_password_hash para usuario='{usuario}': {e}")
 
-            # Bcrypt fallback
             try:
                 if isinstance(clave_hash, str) and clave_hash.startswith('$2'):
                     try:
@@ -55,7 +53,6 @@ def validar_credenciales(usuario, clave):
             except Exception:
                 pass
 
-            # Scrypt fallback (formato: scrypt:<n>:<r>:<p>$<salt_b64>$<hash_hex>)
             try:
                 if isinstance(clave_hash, str) and clave_hash.startswith('scrypt:'):
                     parts = clave_hash.split('$')
@@ -82,7 +79,6 @@ def validar_credenciales(usuario, clave):
             except Exception as e3:
                 print(f"[auth] validar_credenciales: error scrypt fallback para usuario='{usuario}': {e3}")
 
-            # Si llegamos aquí, no pudimos verificar la contraseña
             return None, "Error interno del servidor", None, None, None, None
 
     except Exception as e:

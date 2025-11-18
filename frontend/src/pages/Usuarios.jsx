@@ -18,7 +18,6 @@ function Usuarios() {
   const [pageSize, setPageSize] = useState(10);
   const pageSizes = [5, 10, 25, 50];
 
-  // Modal para añadir usuario
   const [addOpen, setAddOpen] = useState(false);
   const [addFormData, setAddFormData] = useState({ usuario: '', clave: '', nombres: '', apellidos: '', rol: 'medico', estado: true });
   const [addLoading, setAddLoading] = useState(false);
@@ -70,7 +69,6 @@ function Usuarios() {
     const { name, value } = e.target;
     let newValue = value;
     if (name === "usuario") {
-      // allow typical username chars
       newValue = newValue.replace(/[^A-Za-z0-9_\-\.@]/g, "");
       if (newValue.length > 64) newValue = newValue.slice(0, 64);
     }
@@ -95,7 +93,6 @@ function Usuarios() {
     return str.charAt(0).toUpperCase() + str.slice(1);
   };
 
-  // Add user handlers
   const resetAddForm = () => {
     setAddFormData({ usuario: '', clave: '', nombres: '', apellidos: '', rol: 'medico', estado: true });
   };
@@ -236,7 +233,6 @@ function Usuarios() {
             </table>
           </div>
 
-          {/* Pagination controls */}
           {usuariosFiltrados.length > 0 && (
             <div className="mt-4 flex items-center justify-between">
               <div className="text-sm text-gray-600">
@@ -260,7 +256,6 @@ function Usuarios() {
             </div>
           )}
 
-          {/* Add User Modal */}
           {addOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
               <div className="absolute inset-0 bg-black opacity-40" onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Cancelar? Se perderán los datos.', onConfirm: () => { setAddOpen(false); resetAddForm(); } })} />

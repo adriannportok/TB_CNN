@@ -222,7 +222,6 @@ def get_dashboard_stats():
             gran = 'day'
             fmt = 'YYYY-MM-DD'
 
-        # Return counts per period (positives, negatives) and total analyses
         sql_stats = f"""
             SELECT TO_CHAR(date_trunc('{gran}', p.fecha_pred), '{fmt}') as mes,
                    COUNT(CASE WHEN p.porcentaje > 50 THEN 1 END) as positivos_count,

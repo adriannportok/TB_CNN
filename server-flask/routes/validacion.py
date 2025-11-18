@@ -23,25 +23,21 @@ def validar_rcx():
         save_path = os.path.join(uploads_dir, f'tmp_val_{ts}_{filename}')
         file.save(save_path)
 
-        # Ejecutar validador
         try:
             from inference.model import validate_rcx_image
         except Exception as e:
             return jsonify({'error': f'Error al cargar módulo de inferencia: {e}'}), 500
 
         result = validate_rcx_image(save_path)
-        # borrar temporal si existe
         try:
             if os.path.exists(save_path):
                 os.remove(save_path)
         except Exception:
             pass
 
-        # Si la función devolvió un error, devolver siempre el mismo mensaje
         if isinstance(result, dict) and 'error' in result:
             return jsonify({'error': 'La imagen no es una radiografía de tórax válida.'}), 400
 
-        # normalizar campos
         diagnostico = result.get('diagnostico')
         mse = float(result.get('mse', 0.0))
         mae = float(result.get('mae', 0.0))

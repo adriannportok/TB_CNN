@@ -10,7 +10,6 @@ def get_usuarios():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        # selecciono los campos que existen según tu script de creación
         cur.execute("""
             SELECT id_usuario, usuario, clave, nombres, apellidos, rol, estado, fecha_creacion
             FROM usuario
@@ -27,7 +26,6 @@ def get_usuarios():
                 "clave": clave_hash,
                 "nombres": nombres,
                 "apellidos": apellidos,
-                # no hay columna `dni` en la tabla usuario según el script; dejamos null/None
                 "dni": None,
                 "rol": rol,
                 "estado": estado,
@@ -54,14 +52,12 @@ def create_usuario():
         rol = data.get('rol', 'medico')
         estado = data.get('estado', True)
 
-        # Validaciones básicas
         if not usuario or not clave or not nombres or not apellidos:
             return jsonify({"error": "Faltan campos requeridos."}), 400
 
         if len(clave) < 6:
             return jsonify({"error": "La clave debe tener al menos 6 caracteres."}), 400
 
-        # Hashear la contraseña
         hashed = generate_password_hash(clave)
 
         conn = get_db_connection()

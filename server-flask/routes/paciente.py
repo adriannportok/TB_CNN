@@ -12,7 +12,6 @@ def get_pacientes():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        # permitir filtrar por id_usuario o por nombre de usuario (usuario)
         id_usuario = request.args.get('id_usuario')
         usuario = request.args.get('usuario')
 
@@ -50,7 +49,6 @@ def get_pacientes():
             base_query += " WHERE p.id_usuario = %s"
             params.append(id_usuario)
         elif usuario:
-            # resolver usuario -> id_usuario
             cur.execute("SELECT id_usuario FROM usuario WHERE usuario = %s", (usuario,))
             r = cur.fetchone()
             if r:
@@ -188,7 +186,6 @@ def actualizar_paciente(id_paciente):
         usuario = request.form.get('usuario')
         imagen = request.files.get('imagen')
 
-        # simple validation: require usuario (medico) to be provided
         if not usuario:
             return jsonify({"error": "Usuario (médico) requerido para editar."}), 400
 
@@ -204,7 +201,6 @@ def actualizar_paciente(id_paciente):
             return jsonify({"error": "Usuario no encontrado o no es médico"}), 404
         id_usuario = usuario_result[0]
 
-        # ensure paciente exists
         cur.execute("SELECT id_paciente FROM paciente WHERE id_paciente = %s", (id_paciente,))
         if not cur.fetchone():
             return jsonify({"error": "Paciente no encontrado"}), 404
@@ -226,7 +222,6 @@ def actualizar_paciente(id_paciente):
         if dni:
             if not dni.isdigit() or len(dni) > 8 or len(dni) < 1:
                 return jsonify({"error": "El DNI debe contener solo números y como máximo 8 dígitos"}), 400
-            # check uniqueness (except this paciente)
             cur.execute("SELECT COUNT(*) FROM paciente WHERE dni = %s AND id_paciente <> %s", (dni, id_paciente))
             if cur.fetchone()[0] > 0:
                 return jsonify({"error": "Ya existe otro paciente con ese DNI"}), 400
@@ -252,35 +247,29 @@ def actualizar_paciente(id_paciente):
             sql = f"UPDATE paciente SET {', '.join(updates)} WHERE id_paciente = %s"
             cur.execute(sql, tuple(params))
 
-        # If an image is provided, save it and REPLACE the last prediccion's image (do not create a new prediccion)
         if imagen:
             filename = secure_filename(f"{dni or 'pac'}_{datetime.now().strftime('%Y%m%d%H%M%S')}.png")
             upload_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', filename)
             imagen.save(upload_path)
             ruta_imagen = f'uploads/{filename}'
 
-            # find the most recent prediccion for this paciente
             cur.execute("SELECT id_pred, ruta_imagen FROM prediccion WHERE id_paciente = %s ORDER BY fecha_pred DESC LIMIT 1", (id_paciente,))
             last = cur.fetchone()
             if last:
                 last_id_pred = last[0]
                 old_ruta = last[1]
-                # try to remove old image file if present and is inside uploads
                 try:
                     if old_ruta:
                         base_dir = os.path.dirname(os.path.dirname(__file__))
                         old_path = os.path.abspath(os.path.join(base_dir, old_ruta))
-                        # only remove files inside the uploads folder for safety
                         uploads_dir = os.path.abspath(os.path.join(base_dir, 'uploads'))
                         if os.path.commonpath([old_path, uploads_dir]) == uploads_dir and os.path.exists(old_path):
                             os.remove(old_path)
                 except Exception:
                     pass
 
-                # update the existing prediccion to point to the new image and mark as pending
                 cur.execute("UPDATE prediccion SET ruta_imagen = %s, porcentaje = NULL, fecha_pred = NULL WHERE id_pred = %s", (ruta_imagen, last_id_pred))
             else:
-                # no existing prediccion -> insert new row
                 cur.execute("INSERT INTO prediccion (ruta_imagen, id_paciente) VALUES (%s, %s)", (ruta_imagen, id_paciente))
 
         conn.commit()

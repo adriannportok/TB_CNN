@@ -57,7 +57,6 @@ function Pacientes() {
 
   const fetchPacientes = async () => {
     try {
-      // solicitar pacientes filtrados por el usuario médico si está en sesión
       const id_usuario = localStorage.getItem('id_usuario');
       const params = {};
       if (id_usuario) params.id_usuario = id_usuario;
@@ -116,7 +115,6 @@ function Pacientes() {
             title: "Validación",
             message: "La fecha de inicio debe ser anterior a la fecha fin.",
           });
-          // No aplicar filtro si es inválido
           setPacientesFiltrados(pacientes);
           return;
         }
@@ -135,7 +133,6 @@ function Pacientes() {
       });
     }
     setPacientesFiltrados(filtrados);
-    // ajustar página si es necesario
     setPage(1);
   }, [filtros, pacientes]);
 
@@ -167,15 +164,12 @@ function Pacientes() {
   };
 
   const handleGuardarPDF = () => {
-    // Construir una tabla temporal que incluya SOLO las columnas solicitadas:
-    // Nombre Completo, DNI, Fecha de nacimiento, Edad, Sexo, Confianza
     try {
       const tempContainer = document.createElement('div');
       tempContainer.setAttribute('id', 'pdf-temp-content');
       tempContainer.style.padding = '12px';
       tempContainer.style.background = '#ffffff';
 
-      // Header: centered title, then a row with medico (left) and fecha (right)
       const title = document.createElement('h2');
       title.textContent = 'Listado de Pacientes';
       title.style.fontFamily = 'Arial, Helvetica, sans-serif';
@@ -196,14 +190,12 @@ function Pacientes() {
       metaRow.style.color = '#374151';
 
       const medicoSpan = document.createElement('div');
-      // Extraer un nombre legible del localStorage: primero comprobar claves separadas 'nombres' + 'apellidos'
       let medicoNombre = '';
       const nombresLS = localStorage.getItem('nombres');
       const apellidosLS = localStorage.getItem('apellidos');
       if (nombresLS || apellidosLS) {
         medicoNombre = `${nombresLS || ''} ${apellidosLS || ''}`.trim();
       }
-      // Si no hay nombre completo separado, intentar parsear objetos/otras claves
       const keysToTry = ['userData', 'usuario_data', 'usuario', 'user', 'username'];
       for (const key of keysToTry) {
         const raw = localStorage.getItem(key);
@@ -216,7 +208,6 @@ function Pacientes() {
             medicoNombre = `${parsed.nombres} ${parsed.apellidos}`.trim();
             break;
           }
-          // combinar campos comunes 'nombre' + 'apellido' si existen
           if (parsed.nombre && parsed.apellido) {
             medicoNombre = `${parsed.nombre} ${parsed.apellido}`.trim();
             break;
@@ -242,12 +233,10 @@ function Pacientes() {
             break;
           }
         } catch (e) {
-          // no JSON, usar el valor bruto
           medicoNombre = raw;
           break;
         }
       }
-      // Si no se encontró en las claves anteriores, intentar obtener cualquier otro valor común
       if (!medicoNombre) {
         medicoNombre = (localStorage.getItem('usuario') || localStorage.getItem('username') || localStorage.getItem('user') || '').toString();
       }
@@ -286,7 +275,6 @@ function Pacientes() {
 
       const tbody = document.createElement('tbody');
 
-      // Usar solo la página visible para el PDF
       const pageItems = (pacientesFiltrados || []).slice((page - 1) * pageSize, page * pageSize);
       pageItems.forEach((p) => {
         const tr = document.createElement('tr');
@@ -314,7 +302,6 @@ function Pacientes() {
       table.appendChild(tbody);
       tempContainer.appendChild(table);
 
-      // Estilos temporales para asegurar visibilidad en PDF
       const css = `
         #pdf-temp-content, #pdf-temp-content * { color: #000 !important; background: #fff !important; }
         #pdf-temp-content table { border-collapse: collapse !important; }
@@ -340,7 +327,6 @@ function Pacientes() {
         .from(tempContainer)
         .save()
         .then(() => {
-          // limpieza
           if (styleEl.parentNode) document.head.removeChild(styleEl);
           if (tempContainer.parentNode) document.body.removeChild(tempContainer);
         })
@@ -354,7 +340,6 @@ function Pacientes() {
     }
   };
 
-  // Registro dentro de modal
   const handleRegChange = (e) => {
     const { name, value } = e.target;
     let newValue = value;
@@ -373,10 +358,8 @@ function Pacientes() {
     if (file) {
       setRegFormData((prev) => ({ ...prev, imagen: file }));
       setRegPreview(URL.createObjectURL(file));
-      // reset previous validation state
       setRegValidated(false);
       setRegValidationError(null);
-      // trigger async validation but do not show modal here; only set states
       (async () => {
         try {
           setRegValidating(true);
@@ -389,7 +372,6 @@ function Pacientes() {
               setRegValidationError(null);
             } else {
               setRegValidated(false);
-              // Mensaje uniforme para todos los casos de fallo
               setRegValidationError('La imagen no es una radiografía de tórax válida.');
             }
           } else {
@@ -399,7 +381,6 @@ function Pacientes() {
         } catch (err) {
           console.error('Error validando imagen RCX:', err);
           setRegValidated(false);
-          // Mostrar el mensaje uniforme en caso de error de red/servidor
           setRegValidationError('La imagen no es una radiografía de tórax válida.');
         } finally {
           setRegValidating(false);
@@ -408,7 +389,6 @@ function Pacientes() {
     }
   };
 
-  // Edit modal handlers
   const openEditModal = (paciente) => {
     setEditFormData({
       id: paciente.id,
@@ -448,7 +428,6 @@ function Pacientes() {
     setEditLoading(true);
     try {
       const formDataToSend = new FormData();
-      // include usuario (medico) from localStorage
       const usuario = localStorage.getItem('usuario');
       formDataToSend.append('usuario', usuario || '');
       if (editFormData.nombre) formDataToSend.append('nombre', editFormData.nombre);
@@ -514,7 +493,6 @@ function Pacientes() {
         return;
       }
 
-      // Bloquear registro si la validación de la imagen está en curso o falló
       if (regValidating) {
         setModal({ open: true, title: "Validación", message: "La imagen aún se está validando. Por favor espere e intente nuevamente." });
         return;
@@ -540,7 +518,6 @@ function Pacientes() {
         setModal({ open: true, title: "Éxito", message: "Paciente registrado exitosamente." });
         setRegisterOpen(false);
         resetRegForm();
-        // refrescar lista
         fetchPacientes();
       }
     } catch (error) {
@@ -564,7 +541,6 @@ function Pacientes() {
     if (porcentaje === null || porcentaje === undefined) return "0%";
     const val = Number(porcentaje);
     if (isNaN(val)) return "0%";
-    // Si es entero mostrar sin decimales, si tiene fracción mostrar 2 decimales
     if (Number.isInteger(val)) return `${val}%`;
     return `${val.toFixed(2)}%`;
   };
@@ -604,13 +580,9 @@ function Pacientes() {
   );
 
   return (
-    <Layout title="Gestión de Pacientes">
+    <Layout title="Gestión de Pacientes y Análisis">
       <div className="px-2 sm:px-4 py-2">
-        <div className="mb-4">
-          <h2 className="text-left font-bold text-gray-700">
-            Listado de pacientes registrados
-          </h2>
-        </div>
+
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-6 w-full">
           <div className="mb-6 pb-6 border-b border-white">
@@ -913,7 +885,6 @@ function Pacientes() {
               </table>
             </div>
 
-            {/* Modal de registro inline */}
             {registerOpen && (
               <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
                 <div className="absolute inset-0 bg-black opacity-40" onClick={() => { setRegisterOpen(false); resetRegForm(); }} />
@@ -1006,7 +977,6 @@ function Pacientes() {
                 </div>
               </div>
             )}
-            {/* Edit modal */}
             {editOpen && (
               <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
                 <div className="absolute inset-0 bg-black opacity-40" onClick={() => setEditOpen(false)} />
@@ -1091,7 +1061,6 @@ function Pacientes() {
               </div>
             )}
 
-            {/* Pagination controls */}
             {pacientesFiltrados.length > 0 && (
               <div className="mt-4 flex items-center justify-between">
                 <div className="text-sm text-gray-600">
