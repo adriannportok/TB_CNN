@@ -6,7 +6,6 @@ from werkzeug.utils import secure_filename
 import re
 
 paciente_bp = Blueprint('paciente', __name__)
-
 @paciente_bp.route('/pacientes', methods=['GET'])
 def get_pacientes():
     try:
