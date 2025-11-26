@@ -37,7 +37,6 @@ function Login() {
       const data = await response.json();
 
       if (data.success) {
-        // limpiar valores previos relevantes y registrar el nuevo usuario
         try {
           localStorage.removeItem('token');
           localStorage.removeItem('usuario');
@@ -46,7 +45,6 @@ function Login() {
           localStorage.removeItem('nombres');
           localStorage.removeItem('apellidos');
         } catch (e) {
-          // ignore
         }
 
         console.log('Login response:', data);
@@ -57,7 +55,6 @@ function Login() {
         localStorage.setItem('rol', data.rol);
         localStorage.setItem('nombres', data.nombres);
         localStorage.setItem('apellidos', data.apellidos);
-        // Mostrar mensaje breve antes de redirigir
         setSuccessMessage('Credenciales válidas');
         const rol = (data.rol || '').toString().toLowerCase();
         setTimeout(() => {
@@ -68,7 +65,6 @@ function Login() {
           }
         }, 900);
       } else {
-        // Mostrar mensaje genérico para evitar dar pistas sobre qué dato falló
         setError('Credenciales incorrectas');
       }
     } catch (err) {

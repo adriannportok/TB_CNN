@@ -108,14 +108,11 @@ function AnalisisRadiografia() {
         const pct = porcentaje !== null && porcentaje !== undefined && !isNaN(Number(porcentaje)) ? Number(porcentaje) : null;
         const pctText = pct !== null ? `${pct.toFixed(2)}%` : 'Pendiente';
 
-        // Construir mensaje principal y mensaje de recomendación según porcentaje
         const title = simulado ? "Análisis simulado" : "Análisis completado";
-        let body = `${title}`; // no incluir porcentaje en el título
+        let body = `${title}`; 
 
-        // Agregar línea de Peligro
         body += `\nPeligro: ${pctText}`;
 
-        // Mensaje de acción/recomendación
         let recomendacion = '';
         if (pct !== null) {
           if (pct >= 50) {
@@ -129,7 +126,6 @@ function AnalisisRadiografia() {
 
         const message = `${body}\n\n${recomendacion}`;
         openModal({ title, message, type: simulado ? "warning" : "success" });
-        // refresh lists (pendientes y realizados)
         await fetchAnalisis();
       }
     } catch (error) {

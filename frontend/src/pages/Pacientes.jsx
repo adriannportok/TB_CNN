@@ -78,7 +78,6 @@ function Pacientes() {
       if (id_usuario) params.id_usuario = id_usuario;
       const res = await axios.get("http://localhost:5000/api/pacientes", { params });
       if (Array.isArray(res.data)) {
-        // Inicializar pacientes y luego obtener conteo de análisis por paciente
         const basic = res.data.map((p) => ({
           id: p.id_paciente,
           nombreCompleto: `${p.nombres} ${p.apellidos}`,
@@ -91,7 +90,6 @@ function Pacientes() {
           analisisCount: 0,
         }));
 
-        // Fetch counts of realizados (predicciones con porcentaje NOT NULL) para cada paciente
         const promises = basic.map((bp) =>
           axios
             .get(`http://localhost:5000/api/analisis/predicciones/${bp.id}`)
@@ -167,13 +165,11 @@ function Pacientes() {
         return true;
       });
     }
-    // Filtrar por cantidad mínima de análisis
     if (Number(filtros.minAnalisis) > 0) {
       const min = Number(filtros.minAnalisis);
       filtrados = filtrados.filter((p) => (Number(p.analisisCount || 0) >= min));
     }
 
-    // Filtrar por peligro (>50% o <=50%) — solo considerar predicciones con porcentaje definido
     if (filtros.peligro && filtros.peligro !== 'all') {
       if (filtros.peligro === 'gt50') {
         filtrados = filtrados.filter((p) => p.porcentaje !== null && p.porcentaje !== undefined && !isNaN(Number(p.porcentaje)) && Number(p.porcentaje) > 50);
@@ -208,7 +204,6 @@ function Pacientes() {
     }
 
     if (name === 'minAnalisis') {
-      // ensure numeric and non-negative
       newValue = String(Math.max(0, Number(newValue || 0)));
     }
 

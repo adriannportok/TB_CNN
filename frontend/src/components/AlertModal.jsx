@@ -16,10 +16,8 @@ export default function AlertModal({
       try {
         onConfirm();
       } catch (e) {
-        // ignore errors from handler
       }
     }
-    // close after confirm
     if (typeof onClose === 'function') onClose();
   };
 

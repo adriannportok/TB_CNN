@@ -295,7 +295,6 @@ def eliminar_paciente(id_paciente):
         conn = get_db_connection()
         cur = conn.cursor()
 
-        # Verificar que el usuario existe y es médico
         cur.execute("SELECT id_usuario FROM usuario WHERE usuario = %s AND rol = 'medico'", (usuario,))
         r = cur.fetchone()
         if not r:
@@ -304,14 +303,12 @@ def eliminar_paciente(id_paciente):
             return jsonify({'error': 'Usuario no encontrado o no es médico'}), 404
         id_usuario = r[0]
 
-        # Verificar que el paciente pertenece a ese médico
         cur.execute("SELECT id_paciente FROM paciente WHERE id_paciente = %s AND id_usuario = %s", (id_paciente, id_usuario))
         if not cur.fetchone():
             cur.close()
             conn.close()
             return jsonify({'error': 'Paciente no encontrado o no pertenece al médico'}), 404
 
-        # Comprobar si existe al menos una predicción realizada (porcentaje IS NOT NULL)
         cur.execute("SELECT COUNT(*) FROM prediccion WHERE id_paciente = %s AND porcentaje IS NOT NULL", (id_paciente,))
         count_done = cur.fetchone()[0]
         if count_done > 0:
@@ -319,7 +316,6 @@ def eliminar_paciente(id_paciente):
             conn.close()
             return jsonify({'error': 'No se puede eliminar paciente con análisis previos'}), 400
 
-        # Obtener rutas de imagen asociadas para eliminarlas del disco
         cur.execute("SELECT ruta_imagen FROM prediccion WHERE id_paciente = %s", (id_paciente,))
         rutas = cur.fetchall()
         base_dir = os.path.dirname(os.path.dirname(__file__))
@@ -328,13 +324,11 @@ def eliminar_paciente(id_paciente):
             if r and r[0]:
                 try:
                     img_path = os.path.abspath(os.path.join(base_dir, r[0]))
-                    # Sólo eliminar si está dentro de uploads para evitar borrar rutas arbitrarias
                     if os.path.commonpath([img_path, uploads_dir]) == uploads_dir and os.path.exists(img_path):
                         os.remove(img_path)
                 except Exception:
                     pass
 
-        # Eliminar filas de prediccion y paciente
         cur.execute("DELETE FROM prediccion WHERE id_paciente = %s", (id_paciente,))
         cur.execute("DELETE FROM paciente WHERE id_paciente = %s", (id_paciente,))
         conn.commit()

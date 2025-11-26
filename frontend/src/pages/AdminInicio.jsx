@@ -45,7 +45,6 @@ export default function AdminInicio() {
       const analisisAnalizados = pacientes.filter(p => p.porcentaje !== null && typeof p.porcentaje !== 'undefined').length;
       const analisisPendientes = pacientes.length - analisisAnalizados;
 
-      // usuarios por rol para el pie
       const roleCounts = usuarios.reduce((acc, u) => {
         const r = u.rol || 'otro';
         acc[r] = (acc[r] || 0) + 1;
@@ -53,7 +52,6 @@ export default function AdminInicio() {
       }, {});
       const usuariosRoles = Object.keys(roleCounts).map(k => ({ name: k, value: roleCounts[k] }));
 
-      // recientes: generar eventos tipo auditoría a partir de usuarios y pacientes
       const recentUsers = usuarios
         .filter(u => u.fechaRegistro)
         .map(u => ({
@@ -72,13 +70,11 @@ export default function AdminInicio() {
 
       const eventos = [...recentUsers, ...recentPatients].sort((a,b) => b.date - a.date).slice(0,10);
 
-      // últimos usuarios (lista para tarjeta lateral)
       const ultimosUsuarios = usuarios
         .filter(u => u.fechaRegistro)
         .sort((a,b) => new Date(b.fechaRegistro) - new Date(a.fechaRegistro))
         .slice(0,5);
 
-      // métricas admin específicas
       const now = new Date();
       const days30 = new Date(now); days30.setDate(now.getDate() - 30);
       const newUsers30d = usuarios.filter(u => u.fechaRegistro && new Date(u.fechaRegistro) >= days30).length;
@@ -87,7 +83,6 @@ export default function AdminInicio() {
       setStats({ totalUsuarios, medicos, administradores, pacientes: pacientes.length, analisisPendientes, analisisAnalizados, usuariosRoles, eventos, newUsers30d, inactiveAccounts, ultimosUsuarios });
     } catch (err) {
       console.error('Error cargando datos admin:', err);
-      // Silencioso: dejar valores en 0
     }
   };
 

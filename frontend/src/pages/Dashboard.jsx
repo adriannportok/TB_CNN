@@ -90,7 +90,6 @@ function Dashboard() {
                                    stats.riesgo_distribucion.medio + 
                                    stats.riesgo_distribucion.bajo;
 
-  // Prepare bar data: convert percentage fields to counts using total_analisis
   const barData = (stats.stats_mensuales || []).map((d) => {
     const total = Number(d.total_analisis || 0);
     const posPct = Number(d.porcentaje_positivos || 0);
@@ -110,7 +109,6 @@ function Dashboard() {
         <div className="bg-white p-3 border border-gray-200 rounded shadow-lg">
           <p className="font-semibold mb-2">{data.mes}</p>
           {payload.map((entry, index) => {
-            // entry.value now represents count (not percentage)
             const count = Number(entry.value) || 0;
             const pct = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0';
             return (
