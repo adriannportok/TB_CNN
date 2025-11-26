@@ -332,7 +332,7 @@ function RegistroPaciente() {
           </div>
         </div>
       </div>
-  <AlertModal open={modal.open} title={modal.title} message={modal.message} onClose={() => setModal({ open: false, title: "", message: "", onConfirm: undefined })} onConfirm={modal.onConfirm} />
+  <AlertModal open={modal.open} title={modal.title} message={modal.message} onClose={() => setModal({ open: false, title: "", message: "", onConfirm: undefined })} onConfirm={modal.onConfirm} confirmText={modal.confirmText} cancelText={modal.cancelText} />
     </Layout>
   );
 }

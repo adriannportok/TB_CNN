@@ -105,12 +105,30 @@ function AnalisisRadiografia() {
       const response = await axios.post(`${API_BASE}/api/analisis/ejecutar/${id_pred}`);
         if (response.status === 200) {
         const { porcentaje, nivel_confianza, simulado } = response.data;
-        const pctText = porcentaje !== null && porcentaje !== undefined ? `${Number(porcentaje).toFixed(2)}%` : 'N/A';
-        const confText = nivel_confianza !== null && nivel_confianza !== undefined ? `${nivel_confianza}` : 'N/A';
-        const message = simulado
-          ? `Análisis simulado: ${pctText}`
-          : `Análisis completado: ${pctText}\nConfianza: ${confText}`;
-        openModal({ title: simulado ? "Análisis simulado" : "Análisis completado", message, type: simulado ? "warning" : "success" });
+        const pct = porcentaje !== null && porcentaje !== undefined && !isNaN(Number(porcentaje)) ? Number(porcentaje) : null;
+        const pctText = pct !== null ? `${pct.toFixed(2)}%` : 'Pendiente';
+
+        // Construir mensaje principal y mensaje de recomendación según porcentaje
+        const title = simulado ? "Análisis simulado" : "Análisis completado";
+        let body = `${title}`; // no incluir porcentaje en el título
+
+        // Agregar línea de Peligro
+        body += `\nPeligro: ${pctText}`;
+
+        // Mensaje de acción/recomendación
+        let recomendacion = '';
+        if (pct !== null) {
+          if (pct >= 50) {
+            recomendacion = 'Alta probabilidad de tuberculosis, se recomienda tener en cuenta al paciente.';
+          } else {
+            recomendacion = 'Baja probabilidad de tuberculosis, seguimiento y monitoreo bajo.';
+          }
+        } else {
+          recomendacion = 'No hay porcentaje disponible.';
+        }
+
+        const message = `${body}\n\n${recomendacion}`;
+        openModal({ title, message, type: simulado ? "warning" : "success" });
         // refresh lists (pendientes y realizados)
         await fetchAnalisis();
       }
@@ -226,14 +244,18 @@ function AnalisisRadiografia() {
           <div className="fixed inset-0 z-50 flex items-center justify-center" onMouseDown={(e) => { if (modalRef.current && !modalRef.current.contains(e.target)) { setPacienteSeleccionado(null); setPrediccionesPaciente(null); } }}>
             <div className="absolute inset-0 backdrop-blur-sm bg-white/10"></div>
             <div ref={modalRef} role="dialog" aria-modal="true" className="relative bg-gray-50 border border-gray-200 rounded-lg shadow-md max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 z-10 mx-4">
-              <div className="flex items-center justify-between mb-4 border-b border-gray-200 pb-2">
-                <h3 className="text-lg font-semibold text-gray-800">Historial de {pacienteSeleccionado.nombres} {pacienteSeleccionado.apellidos}</h3>
-                <button onClick={() => { setPacienteSeleccionado(null); setPrediccionesPaciente(null); }} aria-label="Cerrar modal" className="px-6 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">Cerrar</button>
+              <div className="mb-4 border-b border-gray-200 pb-2">
+                <div className="relative">
+                  <div className="text-center">
+                    <h3 className="text-lg font-semibold text-gray-800">Historial de {pacienteSeleccionado.nombres} {pacienteSeleccionado.apellidos}</h3>
+                  </div>
+                  <button onClick={() => { setPacienteSeleccionado(null); setPrediccionesPaciente(null); }} aria-label="Cerrar modal" className="absolute right-3 top-0 px-6 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">Cerrar</button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {prediccionesPaciente.map((pred) => (
-                  <div key={pred.id_pred} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition">
+                  <div key={pred.id_pred} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition text-center">
                     {pred.ruta_imagen ? (
                       <img src={`${API_BASE}/${pred.ruta_imagen}`} alt={`Análisis del ${new Date(pred.fecha_pred).toLocaleDateString()}`} className="w-full h-48 object-cover rounded-md mb-2 border border-gray-300" />
                     ) : (
@@ -252,9 +274,9 @@ function AnalisisRadiografia() {
           <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true">
             <div className="absolute inset-0 bg-black/30"></div>
             <div className="relative bg-white rounded-lg shadow-lg max-w-sm w-full p-6 mx-4">
-              <div className="mb-3"><h3 className="text-lg font-semibold text-gray-800">{notifModal.title || "Mensaje"}</h3></div>
-              <p className="text-gray-600 whitespace-pre-line">{notifModal.message}</p>
-              <div className="mt-5 flex justify-end"><button onClick={closeModal} className="px-5 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700">Aceptar</button></div>
+              <div className="mb-3 text-center"><h3 className="text-lg font-semibold text-gray-800">{notifModal.title || "Mensaje"}</h3></div>
+              <p className="text-gray-600 whitespace-pre-line text-center">{notifModal.message}</p>
+              <div className="mt-5 flex justify-center"><button onClick={closeModal} className="px-5 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700">Aceptar</button></div>
             </div>
           </div>
         )}

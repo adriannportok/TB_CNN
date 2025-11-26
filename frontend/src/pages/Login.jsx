@@ -10,6 +10,7 @@ function Login() {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -56,15 +57,19 @@ function Login() {
         localStorage.setItem('rol', data.rol);
         localStorage.setItem('nombres', data.nombres);
         localStorage.setItem('apellidos', data.apellidos);
-        // Redirect según rol
+        // Mostrar mensaje breve antes de redirigir
+        setSuccessMessage('Credenciales válidas');
         const rol = (data.rol || '').toString().toLowerCase();
-        if (rol === 'administrador' || rol === 'admin') {
-          window.location.href = '/admin';
-        } else {
-          window.location.href = '/dashboard';
-        }
+        setTimeout(() => {
+          if (rol === 'administrador' || rol === 'admin') {
+            window.location.href = '/admin';
+          } else {
+            window.location.href = '/dashboard';
+          }
+        }, 900);
       } else {
-        setError(data.message);
+        // Mostrar mensaje genérico para evitar dar pistas sobre qué dato falló
+        setError('Credenciales incorrectas');
       }
     } catch (err) {
       setError('Error de conexión con el servidor');
@@ -92,6 +97,11 @@ function Login() {
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
               {error}
+            </div>
+          )}
+          {successMessage && (
+            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+              {successMessage}
             </div>
           )}
           

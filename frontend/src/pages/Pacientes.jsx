@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Layout from "../components/Layouts";
 import axios from "axios";
 import { FileText } from "lucide-react";
 import html2pdf from "html2pdf.js";
-import { Pencil, Trash2, ChevronDown, Plus, X } from "lucide-react";
+import { Pencil, Trash2, ChevronDown, Plus, X, Download } from "lucide-react";
 import AlertModal from "../components/AlertModal";
 
 function Pacientes() {
@@ -12,10 +12,22 @@ function Pacientes() {
     dni: "",
     fechaInicio: "",
     fechaFin: "",
+    minAnalisis: 0,
+    peligro: 'all',
   });
+
+  const filtrosActivos = Boolean(
+    (filtros.nombreCompleto && filtros.nombreCompleto.trim() !== '') ||
+    (filtros.dni && filtros.dni.trim() !== '') ||
+    filtros.fechaInicio ||
+    filtros.fechaFin ||
+    Number(filtros.minAnalisis) > 0 ||
+    (filtros.peligro && filtros.peligro !== 'all')
+  );
 
   const [pacientes, setPacientes] = useState([]);
   const [pacientesFiltrados, setPacientesFiltrados] = useState([]);
+  const [maxAnalisis, setMaxAnalisis] = useState(0);
   const [pacienteSeleccionadoId, setPacienteSeleccionadoId] = useState(null);
   const [prediccionesPaciente, setPrediccionesPaciente] = useState([]);
   const [loadingPredicciones, setLoadingPredicciones] = useState(false);
@@ -38,6 +50,7 @@ function Pacientes() {
   const [regValidating, setRegValidating] = useState(false);
   const [regValidated, setRegValidated] = useState(false);
   const [regValidationError, setRegValidationError] = useState(null);
+  const regFileInputRef = useRef(null);
   const [editOpen, setEditOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({
     id: null,
@@ -50,6 +63,9 @@ function Pacientes() {
   });
   const [editPreview, setEditPreview] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
+  const editFileInputRef = useRef(null);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [imageModalData, setImageModalData] = useState(null);
 
   useEffect(() => {
     fetchPacientes();
@@ -62,7 +78,8 @@ function Pacientes() {
       if (id_usuario) params.id_usuario = id_usuario;
       const res = await axios.get("http://localhost:5000/api/pacientes", { params });
       if (Array.isArray(res.data)) {
-        const data = res.data.map((p) => ({
+        // Inicializar pacientes y luego obtener conteo de análisis por paciente
+        const basic = res.data.map((p) => ({
           id: p.id_paciente,
           nombreCompleto: `${p.nombres} ${p.apellidos}`,
           dni: p.dni,
@@ -71,7 +88,25 @@ function Pacientes() {
           sexo: p.sexo,
           fechaRegistro: p.fecha_registro,
           porcentaje: p.porcentaje,
+          analisisCount: 0,
         }));
+
+        // Fetch counts of realizados (predicciones con porcentaje NOT NULL) para cada paciente
+        const promises = basic.map((bp) =>
+          axios
+            .get(`http://localhost:5000/api/analisis/predicciones/${bp.id}`)
+            .then((r) => ({ id: bp.id, count: Array.isArray(r.data) ? r.data.length : 0 }))
+            .catch(() => ({ id: bp.id, count: 0 }))
+        );
+
+        const results = await Promise.all(promises);
+        const countsMap = {};
+        results.forEach((r) => { countsMap[r.id] = r.count; });
+
+        const data = basic.map((bp) => ({ ...bp, analisisCount: countsMap[bp.id] || 0 }));
+        const computedMax = data.reduce((m, it) => Math.max(m, it.analisisCount), 0);
+        setMaxAnalisis(computedMax);
+
         setPacientes(data);
         setPacientesFiltrados(data);
       } else {
@@ -132,6 +167,21 @@ function Pacientes() {
         return true;
       });
     }
+    // Filtrar por cantidad mínima de análisis
+    if (Number(filtros.minAnalisis) > 0) {
+      const min = Number(filtros.minAnalisis);
+      filtrados = filtrados.filter((p) => (Number(p.analisisCount || 0) >= min));
+    }
+
+    // Filtrar por peligro (>50% o <=50%) — solo considerar predicciones con porcentaje definido
+    if (filtros.peligro && filtros.peligro !== 'all') {
+      if (filtros.peligro === 'gt50') {
+        filtrados = filtrados.filter((p) => p.porcentaje !== null && p.porcentaje !== undefined && !isNaN(Number(p.porcentaje)) && Number(p.porcentaje) > 50);
+      } else if (filtros.peligro === 'lt50') {
+        filtrados = filtrados.filter((p) => p.porcentaje !== null && p.porcentaje !== undefined && !isNaN(Number(p.porcentaje)) && Number(p.porcentaje) <= 50);
+      }
+    }
+
     setPacientesFiltrados(filtrados);
     setPage(1);
   }, [filtros, pacientes]);
@@ -155,6 +205,15 @@ function Pacientes() {
     if (name === "dni") {
       newValue = newValue.replace(/\D/g, "");
       if (newValue.length > 8) newValue = newValue.slice(0, 8);
+    }
+
+    if (name === 'minAnalisis') {
+      // ensure numeric and non-negative
+      newValue = String(Math.max(0, Number(newValue || 0)));
+    }
+
+    if (name === 'peligro') {
+      newValue = value;
     }
 
     setFiltros((prev) => ({
@@ -574,6 +633,20 @@ function Pacientes() {
     await fetchPredicciones(idPaciente);
   };
 
+  const handleDeletePaciente = async (idPaciente) => {
+    try {
+      const usuario = localStorage.getItem('usuario');
+      const res = await axios.delete(`http://localhost:5000/api/pacientes/${idPaciente}`, { params: { usuario } });
+      if (res.status === 200) {
+        setModal({ open: true, title: 'Éxito', message: 'Paciente eliminado.' });
+        fetchPacientes();
+      }
+    } catch (err) {
+      const msg = err.response?.data?.error || 'Error al eliminar paciente.';
+      setModal({ open: true, title: 'Error', message: msg });
+    }
+  };
+
   const totalPages = Math.max(
     1,
     Math.ceil(pacientesFiltrados.length / pageSize),
@@ -587,84 +660,8 @@ function Pacientes() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 sm:p-6 w-full">
           <div className="mb-6 pb-6 border-b border-white">
 
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 w-full lg:w-auto flex-1">
-                <div className="sm:col-span-1">
-                  <label
-                    htmlFor="nombreCompleto"
-                    className="block text-sm font-medium text-gray-700 mb-2 text-left"
-                  >
-                    Nombre completo
-                  </label>
-                  <input
-                    type="text"
-                    id="nombreCompleto"
-                    name="nombreCompleto"
-                    value={filtros.nombreCompleto}
-                    onChange={handleFiltroChange}
-                    placeholder="Buscar por nombre"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                <div className="sm:col-span-1">
-                  <label
-                    htmlFor="dni"
-                    className="block text-sm font-medium text-gray-700 mb-2 text-left"
-                  >
-                    DNI
-                  </label>
-                  <input
-                    type="text"
-                    id="dni"
-                    name="dni"
-                    value={filtros.dni}
-                    onChange={handleFiltroChange}
-                    inputMode="numeric"
-                    maxLength={8}
-                    placeholder="Buscar por DNI"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label
-                        htmlFor="fechaInicio"
-                        className="block text-sm font-medium text-gray-700 mb-2 text-left"
-                      >
-                        Fecha inicio
-                      </label>
-                      <input
-                        type="date"
-                        id="fechaInicio"
-                        name="fechaInicio"
-                        value={filtros.fechaInicio}
-                        onChange={handleFiltroChange}
-                        className="w-full px-2 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label
-                        htmlFor="fechaFin"
-                        className="block text-sm font-medium text-gray-700 mb-2 text-left"
-                      >
-                        Fecha fin
-                      </label>
-                      <input
-                        type="date"
-                        id="fechaFin"
-                        name="fechaFin"
-                        value={filtros.fechaFin}
-                        onChange={handleFiltroChange}
-                        className="w-full px-2 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2 w-full lg:w-auto flex-shrink-0 items-start lg:items-end">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-end">
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -683,14 +680,70 @@ function Pacientes() {
                     Guardar PDF
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => { resetRegForm(); setRegisterOpen(true); }}
-                    className="flex items-center px-4 py-2 border border-gray-200 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-                  >
-                    <Plus className="w-4 h-4 mr-2 text-teal-600" />
-                    Agregar Paciente
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFiltros({ nombreCompleto: '', dni: '', fechaInicio: '', fechaFin: '', minAnalisis: 0, peligro: 'all' });
+                        setPage(1);
+                        setPacienteSeleccionadoId(null);
+                        setPrediccionesPaciente([]);
+                      }}
+                      disabled={!filtrosActivos}
+                      aria-disabled={!filtrosActivos}
+                      className={`flex items-center px-4 py-2 border rounded-md shadow-sm text-sm font-medium ${filtrosActivos ? 'border-teal-200 bg-teal-100 text-teal-700 hover:bg-teal-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-300' : 'border-gray-200 text-gray-400 bg-gray-100 cursor-not-allowed'}`}
+                    >
+                      Limpiar filtros
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { resetRegForm(); setRegisterOpen(true); }}
+                      className="flex items-center px-4 py-2 border border-gray-200 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                    >
+                      <Plus className="w-4 h-4 mr-2 text-teal-600" />
+                      Agregar Paciente
+                    </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 w-full lg:w-auto">
+                <div>
+                  <label htmlFor="nombreCompleto" className="block text-sm font-medium text-gray-700 mb-2 text-left">Nombre completo</label>
+                  <input type="text" id="nombreCompleto" name="nombreCompleto" value={filtros.nombreCompleto} onChange={handleFiltroChange} placeholder="Buscar por nombre" className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                </div>
+
+                <div>
+                  <label htmlFor="dni" className="block text-sm font-medium text-gray-700 mb-2 text-left">DNI</label>
+                  <input type="text" id="dni" name="dni" value={filtros.dni} onChange={handleFiltroChange} inputMode="numeric" maxLength={8} placeholder="Buscar por DNI" className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                </div>
+
+                <div>
+                  <label htmlFor="fechaInicio" className="block text-sm font-medium text-gray-700 mb-2 text-left">Fecha inicio</label>
+                  <input type="date" id="fechaInicio" name="fechaInicio" value={filtros.fechaInicio} onChange={handleFiltroChange} className="w-full px-2 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                </div>
+
+                <div>
+                  <label htmlFor="fechaFin" className="block text-sm font-medium text-gray-700 mb-2 text-left">Fecha fin</label>
+                  <input type="date" id="fechaFin" name="fechaFin" value={filtros.fechaFin} onChange={handleFiltroChange} className="w-full px-2 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Min. análisis</label>
+                  <select name="minAnalisis" value={filtros.minAnalisis} onChange={handleFiltroChange} className="w-full px-2 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value={0}>Todos</option>
+                    {Array.from({ length: Math.max(1, maxAnalisis) }).map((_, i) => (
+                      <option key={i+1} value={i+1}>{i+1}+</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Peligro</label>
+                  <select name="peligro" value={filtros.peligro} onChange={handleFiltroChange} className="w-full px-2 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="all">Todos</option>
+                    <option value="gt50">Mayor a 50%</option>
+                    <option value="lt50">Menor o igual 50%</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -795,21 +848,25 @@ function Pacientes() {
                               <div className="flex justify-center items-center gap-3">
                                 {(() => {
                                   const hasAnalisis = paciente.porcentaje !== null && typeof paciente.porcentaje !== 'undefined';
+                                  const open = pacienteSeleccionadoId === paciente.id;
                                   return (
                                     <button
                                       onClick={() => hasAnalisis && toggleMostrarPredicciones(paciente.id)}
                                       aria-disabled={!hasAnalisis}
-                                      title={hasAnalisis ? 'Ver análisis' : 'No hay análisis'}
+                                      aria-expanded={open}
+                                      title={hasAnalisis ? (open ? 'Cerrar análisis' : 'Ver análisis') : 'No hay análisis'}
                                       className={`p-1 rounded ${hasAnalisis ? 'text-teal-600 hover:text-teal-800' : 'text-gray-300 cursor-not-allowed'}`}
                                     >
-                                      <ChevronDown className="w-5 h-5" />
+                                      <ChevronDown className={`w-5 h-5 transform transition-transform duration-200 ${open ? 'rotate-180' : 'rotate-0'}`} />
                                     </button>
                                   );
                                 })()}
                                 <button onClick={() => openEditModal(paciente)} className="p-1">
                                   <Pencil className="w-4 h-4 text-blue-600 hover:text-blue-800 cursor-pointer" />
                                 </button>
-                                <Trash2 className="w-4 h-4 text-red-600 hover:text-red-800 cursor-pointer" />
+                                <button onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Eliminar paciente? Esta acción no se puede deshacer.', onConfirm: () => { setModal({ open: false }); handleDeletePaciente(paciente.id); } })} className="p-1">
+                                  <Trash2 className="w-4 h-4 text-red-600 hover:text-red-800 cursor-pointer" />
+                                </button>
                               </div>
                             </td>
                           </tr>
@@ -836,17 +893,18 @@ function Pacientes() {
                                           key={pred.id_pred}
                                           className="bg-white border border-gray-200 rounded-lg p-3 flex items-start gap-3"
                                         >
-                                          {pred.ruta_imagen ? (
-                                            <img
-                                              src={`http://localhost:5000/${pred.ruta_imagen}`}
-                                              alt={`Pred ${pred.id_pred}`}
-                                              className="w-20 h-20 object-cover rounded-md border"
-                                            />
-                                          ) : (
-                                            <div className="w-20 h-20 bg-gray-100 rounded-md flex items-center justify-center text-gray-400">
-                                              Sin imagen
-                                            </div>
-                                          )}
+                                              {pred.ruta_imagen ? (
+                                                <img
+                                                  src={`http://localhost:5000/${pred.ruta_imagen}`}
+                                                  alt={`Pred ${pred.id_pred}`}
+                                                  className="w-20 h-20 object-cover rounded-md border cursor-pointer"
+                                                  onClick={() => { setImageModalData(pred); setImageModalOpen(true); }}
+                                                />
+                                              ) : (
+                                                <div className="w-20 h-20 bg-gray-100 rounded-md flex items-center justify-center text-gray-400 cursor-default">
+                                                  Sin imagen
+                                                </div>
+                                              )}
                                           <div className="flex-1 text-sm">
                                             <p className="font-semibold">
                                               {pred.porcentaje !== null
@@ -873,11 +931,8 @@ function Pacientes() {
                       ))
                   ) : (
                     <tr>
-                      <td
-                        colSpan="8"
-                        className="px-6 py-4 text-center text-sm text-gray-500 italic"
-                      >
-                        No se encontraron pacientes con los filtros aplicados.
+                      <td colSpan="8" className="px-6 py-4 text-center text-sm text-gray-500 italic">
+                        No se encontraron pacientes
                       </td>
                     </tr>
                   )}
@@ -901,7 +956,7 @@ function Pacientes() {
                             <p className="text-xs text-gray-500">Registra un nuevo paciente y sube la radiografía</p>
                           </div>
                         </div>
-                        <button onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Cancelar? Se perderán los datos.', onConfirm: () => { setRegisterOpen(false); resetRegForm(); } })} className="p-2 rounded-md text-gray-500 hover:bg-gray-100">
+                        <button onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Cancelar? Se perderán los datos.', onConfirm: () => { setRegisterOpen(false); resetRegForm(); }, confirmText: 'Cancelar', cancelText: 'Volver' })} className="p-2 rounded-md text-gray-500 hover:bg-gray-100">
                           <X className="w-5 h-5" />
                         </button>
                       </div>
@@ -927,8 +982,38 @@ function Pacientes() {
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Radiografía de tórax</label>
-                            <input type="file" name="imagen" accept="image/*" onChange={handleRegImageChange} className="w-full text-sm text-gray-500" />
-                            <p className="text-xs text-gray-400 mt-1">JPG/PNG. Máx. 5MB.</p>
+                            <input ref={regFileInputRef} type="file" name="imagen" accept="image/*" onChange={handleRegImageChange} className="hidden" />
+                            <div style={{display: 'flex', gap: 12, alignItems: 'center'}}>
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => regFileInputRef.current && regFileInputRef.current.click()}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') regFileInputRef.current && regFileInputRef.current.click(); }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 12,
+                                  padding: '10px 14px',
+                                  borderRadius: 10,
+                                  border: '1px solid rgba(13,148,136,0.15)',
+                                  background: '#ffffff',
+                                  boxShadow: '0 1px 2px rgba(16,24,40,0.03)',
+                                  cursor: 'pointer',
+                                  minWidth: 220,
+                                }}
+                                aria-label="Seleccionar radiografía"
+                              >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                                  <path d="M16 16L21 11" stroke="#0d9488" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                  <path d="M21 11V17C21 18.1046 20.1046 19 19 19H5C3.89543 19 3 18.1046 3 17V7C3 5.89543 3.89543 5 5 5H11" stroke="#0d9488" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                  <path d="M7 9H7.01" stroke="#0d9488" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                                <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-start'}}>
+                                  <span style={{fontSize: 14, color: '#0f766e', fontWeight: 600}}>Seleccionar radiografía</span>
+                                  <span style={{fontSize: 12, color: '#6b7280'}}>{regFormData.imagen ? regFormData.imagen.name : 'Arrastra o haz clic para seleccionar'}</span>
+                                </div>
+                              </div>
+                            </div>
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Género</label>
@@ -956,7 +1041,7 @@ function Pacientes() {
                           {regValidating ? (
                             <p className="text-sm text-gray-500 mt-2">Validando imagen...</p>
                           ) : regValidated ? (
-                            <p className="text-sm text-green-600 mt-2">RCX validada</p>
+                            <p className="text-sm text-green-600 mt-2">Radiografía de tórax válida</p>
                           ) : regValidationError ? (
                             <p className="text-sm text-red-600 mt-2">{regValidationError}</p>
                           ) : null}
@@ -964,7 +1049,7 @@ function Pacientes() {
                       </div>
 
                       <div className="flex justify-end gap-3 mt-6">
-                        <button onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Cancelar? Se perderán los datos.', onConfirm: () => { setRegisterOpen(false); resetRegForm(); } })} className="px-4 py-2 border border-gray-200 rounded-md bg-white text-gray-700 hover:bg-gray-50">Cancelar</button>
+                        <button onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Cancelar? Se perderán los datos.', onConfirm: () => { setRegisterOpen(false); resetRegForm(); }, confirmText: 'Cancelar', cancelText: 'Volver' })} className="px-4 py-2 border border-gray-200 rounded-md bg-white text-gray-700 hover:bg-gray-50">Cancelar</button>
                         <button onClick={handleRegisterSubmit} disabled={regLoading} className="px-4 py-2 bg-teal-600 text-white rounded-md shadow hover:bg-teal-700 inline-flex items-center">
                           {regLoading ? (
                             <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
@@ -993,7 +1078,7 @@ function Pacientes() {
                             <p className="text-xs text-gray-500">Modifica datos del paciente o sube una nueva radiografía (se analizará).</p>
                           </div>
                         </div>
-                        <button onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Cancelar? Se perderán los cambios no guardados.', onConfirm: () => { setEditOpen(false); setEditPreview(null); setEditFormData({ id: null, nombre: '', apellido: '', fechaNacimiento: '', genero: '', dni: '', imagen: null }); } })} className="p-2 rounded-md text-gray-500 hover:bg-gray-100">
+                        <button onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Cancelar? Se perderán los cambios no guardados.', onConfirm: () => { setEditOpen(false); setEditPreview(null); setEditFormData({ id: null, nombre: '', apellido: '', fechaNacimiento: '', genero: '', dni: '', imagen: null }); }, confirmText: 'Cancelar', cancelText: 'Volver' })} className="p-2 rounded-md text-gray-500 hover:bg-gray-100">
                           <X className="w-5 h-5" />
                         </button>
                       </div>
@@ -1019,7 +1104,38 @@ function Pacientes() {
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Radiografía (última)</label>
-                            <input type="file" name="imagen" accept="image/*" onChange={handleEditImageChange} className="w-full text-sm text-gray-500" />
+                            <input ref={editFileInputRef} type="file" name="imagen" accept="image/*" onChange={handleEditImageChange} className="hidden" />
+                            <div style={{display: 'flex', gap: 12, alignItems: 'center'}}>
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => editFileInputRef.current && editFileInputRef.current.click()}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') editFileInputRef.current && editFileInputRef.current.click(); }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 12,
+                                  padding: '10px 14px',
+                                  borderRadius: 10,
+                                  border: '1px solid rgba(13,148,136,0.15)',
+                                  background: '#ffffff',
+                                  boxShadow: '0 1px 2px rgba(16,24,40,0.03)',
+                                  cursor: 'pointer',
+                                  minWidth: 220,
+                                }}
+                                aria-label="Seleccionar radiografía (editar)"
+                              >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                                  <path d="M16 16L21 11" stroke="#0d9488" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                  <path d="M21 11V17C21 18.1046 20.1046 19 19 19H5C3.89543 19 3 18.1046 3 17V7C3 5.89543 3.89543 5 5 5H11" stroke="#0d9488" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                  <path d="M7 9H7.01" stroke="#0d9488" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                                <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-start'}}>
+                                  <span style={{fontSize: 14, color: '#0f766e', fontWeight: 600}}>Seleccionar radiografía</span>
+                                  <span style={{fontSize: 12, color: '#6b7280'}}>{editFormData.imagen ? editFormData.imagen.name : 'Arrastra o haz clic para seleccionar'}</span>
+                                </div>
+                              </div>
+                            </div>
                             <p className="text-xs text-gray-400 mt-1">Subir una nueva imagen creará un nuevo análisis pendiente.</p>
                           </div>
                           <div>
@@ -1047,7 +1163,7 @@ function Pacientes() {
                       </div>
 
                       <div className="flex justify-end gap-3 mt-6">
-                        <button onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Cancelar? Se perderán los cambios no guardados.', onConfirm: () => { setEditOpen(false); } })} className="px-4 py-2 border border-gray-200 rounded-md bg-white text-gray-700 hover:bg-gray-50">Cancelar</button>
+                        <button onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Cancelar? Se perderán los cambios no guardados.', onConfirm: () => { setEditOpen(false); setEditPreview(null); setEditFormData({ id: null, nombre: '', apellido: '', fechaNacimiento: '', genero: '', dni: '', imagen: null }); }, confirmText: 'Cancelar', cancelText: 'Volver' })} className="px-4 py-2 border border-gray-200 rounded-md bg-white text-gray-700 hover:bg-gray-50">Cancelar</button>
                         <button onClick={handleEditSubmit} disabled={editLoading} className="px-4 py-2 bg-teal-600 text-white rounded-md shadow hover:bg-teal-700 inline-flex items-center">
                           {editLoading ? (
                             <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
@@ -1116,11 +1232,7 @@ function Pacientes() {
               </div>
             )}
 
-            {pacientesFiltrados.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                No se encontraron pacientes
-              </div>
-            )}
+            
           </div>
         </div>
       </div>
@@ -1130,7 +1242,58 @@ function Pacientes() {
         message={modal.message}
         onClose={() => setModal({ open: false, title: "", message: "", onConfirm: undefined })}
         onConfirm={modal.onConfirm}
+        confirmText={modal.confirmText}
+        cancelText={modal.cancelText}
       />
+      {imageModalOpen && imageModalData && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black opacity-60" onClick={() => { setImageModalOpen(false); setImageModalData(null); }} />
+          <div className="relative z-10 w-full max-w-3xl mx-auto transform transition-all duration-200 ease-out scale-100">
+            <div className="bg-white rounded-xl shadow-2xl overflow-hidden">
+              <div className="bg-gradient-to-r from-teal-50 to-white p-4 border-b">
+                <div className="relative">
+                  <div className="flex items-center justify-center">
+                    <div className="text-center">
+                      <h3 className="text-lg font-semibold text-gray-800">Radiografía</h3>
+                      <p className="text-xs text-gray-500">Detalles de la predicción seleccionada</p>
+                    </div>
+                  </div>
+                  <button onClick={() => { setImageModalOpen(false); setImageModalData(null); }} className="absolute right-3 top-3 p-2 rounded-md text-gray-500 hover:bg-gray-100">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+              <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                <div className="md:col-span-2 flex items-center justify-center">
+                  {imageModalData.ruta_imagen ? (
+                    <img src={`http://localhost:5000/${imageModalData.ruta_imagen}`} alt={`Pred ${imageModalData.id_pred}`} className="max-h-[70vh] w-full object-contain rounded-md" />
+                  ) : (
+                    <div className="w-full h-80 bg-gray-100 rounded-md flex items-center justify-center text-gray-400">Sin imagen</div>
+                  )}
+                </div>
+                <div className="md:col-span-1">
+                  <div className="text-sm mb-3 text-center">
+                    <strong>Porcentaje:</strong>
+                    <span className={`ml-2 inline-flex items-center px-2 py-1 text-xs font-medium rounded ${imageModalData.porcentaje === null || typeof imageModalData.porcentaje === 'undefined' ? 'bg-yellow-100 text-yellow-800' : (Number(imageModalData.porcentaje) >= 50 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800')}`}>
+                      {imageModalData.porcentaje === null || typeof imageModalData.porcentaje === 'undefined' ? 'Pendiente' : `${Number(imageModalData.porcentaje).toFixed(2)}%`}
+                    </span>
+                  </div>
+                  <div className="text-sm text-gray-700 mb-4 text-center"><strong>Fecha:</strong> {imageModalData.fecha_pred || imageModalData.fecha_registro || '-'}</div>
+                  <div className="flex flex-col sm:flex-row gap-2 mt-2 justify-center">
+                    {imageModalData.ruta_imagen ? (
+                      <a href={`http://localhost:5000/${imageModalData.ruta_imagen}`} target="_blank" rel="noreferrer" className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-md text-sm text-gray-700 hover:bg-gray-50">
+                        <Download className="w-4 h-4" />
+                        Abrir / Descargar
+                      </a>
+                    ) : null}
+                    <button onClick={() => { setImageModalOpen(false); setImageModalData(null); }} className="px-3 py-2 bg-teal-600 text-white rounded-md">Cerrar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
