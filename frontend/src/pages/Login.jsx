@@ -162,9 +162,9 @@ function Login() {
           </form>
 
           <p className="mt-10 text-center text-sm text-gray-500">
-            ¿Olvidaste tu contraseña?{" "}
+            {/* ¿Olvidaste tu contraseña?{" "} */}
             <a href="#" className="font-semibold text-teal-600 hover:text-teal-500">
-              Contactar al soporte
+              {/* ¿Olvidaste tu contraseña?{" "} */}
             </a>
           </p>
         </div>

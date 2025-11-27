@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from config import get_db_connection
 from datetime import datetime
 import os
+from werkzeug.utils import secure_filename
 
 from flask import Blueprint, request, jsonify
 from config import get_db_connection
@@ -271,4 +272,92 @@ def ejecutar_prediccion_por_id(id_pred):
         import traceback
         traceback.print_exc()
         return jsonify({'error': 'Error interno del servidor'}), 500
+
+
+
+@radiografia_bp.route('/analisis/nuevo/<int:id_paciente>', methods=['POST'])
+def crear_nuevo_analisis(id_paciente):
+    """Crea un nuevo registro en prediccion (análisis pendiente) para el paciente.
+    Requiere JSON body con 'usuario' para verificar que el médico puede operar sobre el paciente.
+    Solo se permite si NO existe un análisis pendiente (porcentaje IS NULL) para ese paciente."""
+    try:
+        # No intentar parsear JSON: soportamos multipart/form-data (imagen + usuario)
+        usuario = request.form.get('usuario') or request.args.get('usuario')
+        if not usuario:
+            return jsonify({'error': "Usuario (médico) requerido"}), 400
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id_usuario FROM usuario WHERE usuario = %s AND rol = 'medico'", (usuario,))
+        r = cur.fetchone()
+        if not r:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'Usuario no encontrado o no es médico'}), 404
+        id_usuario = r[0]
+
+        cur.execute("SELECT id_paciente FROM paciente WHERE id_paciente = %s AND id_usuario = %s", (id_paciente, id_usuario))
+        if not cur.fetchone():
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'Paciente no encontrado o no pertenece al médico'}), 404
+
+        # Comprobar si hay análisis pendientes
+        cur.execute("SELECT COUNT(*) FROM prediccion WHERE id_paciente = %s AND porcentaje IS NULL", (id_paciente,))
+        pendientes = cur.fetchone()[0]
+        if pendientes > 0:
+            cur.close()
+            conn.close()
+            return jsonify({'error': 'No se puede crear un nuevo análisis: el paciente figura como pendiente.'}), 400
+
+        # Si llega una imagen en multipart, guardarla y crear el análisis con esa imagen
+        imagen = request.files.get('imagen')
+        if imagen:
+            try:
+                filename = secure_filename(f"pac_{id_paciente}_{datetime.now().strftime('%Y%m%d%H%M%S')}.png")
+                base_dir = os.path.dirname(os.path.dirname(__file__))
+                uploads_dir = os.path.join(base_dir, 'uploads')
+                # Asegurar que el directorio exista
+                os.makedirs(uploads_dir, exist_ok=True)
+                upload_path = os.path.join(uploads_dir, filename)
+                imagen.save(upload_path)
+                ruta_imagen = f'uploads/{filename}'
+                cur.execute("INSERT INTO prediccion (ruta_imagen, id_paciente) VALUES (%s, %s) RETURNING id_pred", (ruta_imagen, id_paciente))
+                new_id = cur.fetchone()[0]
+            except Exception as e:
+                cur.close()
+                conn.close()
+                print('Error guardando imagen nuevo análisis:', e)
+                return jsonify({'error': 'Error guardando la imagen del análisis.'}), 500
+        else:
+            # Obtener la última ruta de imagen existente y duplicarla
+            cur.execute("SELECT ruta_imagen FROM prediccion WHERE id_paciente = %s ORDER BY fecha_pred DESC LIMIT 1", (id_paciente,))
+            last = cur.fetchone()
+            if not last or not last[0]:
+                cur.close()
+                conn.close()
+                return jsonify({'error': 'No hay imagen disponible para crear un nuevo análisis.'}), 400
+            ruta = last[0]
+            cur.execute("INSERT INTO prediccion (ruta_imagen, id_paciente) VALUES (%s, %s) RETURNING id_pred", (ruta, id_paciente))
+            new_id = cur.fetchone()[0]
+        conn.commit()
+        cur.close()
+        conn.close()
+        return jsonify({'mensaje': 'Nuevo análisis creado', 'id_pred': new_id}), 201
+    except Exception as e:
+        import traceback
+        if 'conn' in locals():
+            conn.rollback()
+            try:
+                cur.close()
+            except Exception:
+                pass
+            try:
+                conn.close()
+            except Exception:
+                pass
+        tb = traceback.format_exc()
+        print('Error crear_nuevo_analisis:', e)
+        print(tb)
+        return jsonify({'error': str(e), 'trace': tb}), 500
     

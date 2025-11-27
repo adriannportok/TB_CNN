@@ -70,6 +70,16 @@ function Pacientes() {
   const [editValidationError, setEditValidationError] = useState(null);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [imageModalData, setImageModalData] = useState(null);
+  const [newAnalisisOpen, setNewAnalisisOpen] = useState(false);
+  const [newAnalisisPacienteId, setNewAnalisisPacienteId] = useState(null);
+  const [newAnalisisPacienteData, setNewAnalisisPacienteData] = useState(null);
+  const [newAnalisisFile, setNewAnalisisFile] = useState(null);
+  const [newAnalisisPreview, setNewAnalisisPreview] = useState(null);
+  const [newAnalisisLoading, setNewAnalisisLoading] = useState(false);
+  const [newAnalisisValidating, setNewAnalisisValidating] = useState(false);
+  const [newAnalisisValidated, setNewAnalisisValidated] = useState(false);
+  const [newAnalisisValidationError, setNewAnalisisValidationError] = useState(null);
+  const newAnalisisFileInputRef = useRef(null);
 
   useEffect(() => {
     fetchPacientes();
@@ -217,7 +227,7 @@ function Pacientes() {
       tempContainer.style.background = '#ffffff';
 
       const title = document.createElement('h2');
-      title.textContent = 'Listado de Pacientes';
+      title.textContent = 'Pacientes Analizados';
       title.style.fontFamily = 'Arial, Helvetica, sans-serif';
       title.style.margin = '0';
       title.style.padding = '0';
@@ -360,9 +370,60 @@ function Pacientes() {
 
       document.body.appendChild(tempContainer);
 
+      const formatDateForFilename = (d) => {
+        try {
+          if (!d) return null;
+          if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+            const [y, m, day] = d.split('-');
+            return `${day}-${m}-${y}`;
+          }
+          const dt = new Date(d);
+          if (isNaN(dt.getTime())) return null;
+          const day = String(dt.getDate()).padStart(2, '0');
+          const month = String(dt.getMonth() + 1).padStart(2, '0');
+          const year = dt.getFullYear();
+          return `${day}-${month}-${year}`;
+        } catch (e) {
+          return null;
+        }
+      };
+
+      let filenameDate = null;
+      if (filtros.fechaInicio && filtros.fechaFin) {
+        const start = formatDateForFilename(filtros.fechaInicio);
+        const end = formatDateForFilename(filtros.fechaFin);
+        if (start && end) filenameDate = `${start}_a_${end}`;
+      } else if (filtros.fechaInicio) {
+        const start = formatDateForFilename(filtros.fechaInicio);
+        if (start) filenameDate = start;
+      } else if (filtros.fechaFin) {
+        const end = formatDateForFilename(filtros.fechaFin);
+        if (end) filenameDate = end;
+      }
+      if (!filenameDate) {
+        const nowDate = new Date();
+        const day = String(nowDate.getDate()).padStart(2, '0');
+        const month = String(nowDate.getMonth() + 1).padStart(2, '0');
+        const year = nowDate.getFullYear();
+        filenameDate = `${day}-${month}-${year}`;
+      }
+
+      const storageKey = `pdf_count_${filenameDate}`;
+      let count = 1;
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (raw) {
+          const parsed = parseInt(raw, 10);
+          if (!isNaN(parsed)) count = parsed + 1;
+        }
+        localStorage.setItem(storageKey, String(count));
+      } catch (e) {
+        count = 1;
+      }
+      const uniqueSuffix = String(count).padStart(3, '0');
       const opt = {
         margin: 0.5,
-        filename: 'listado_pacientes.pdf',
+        filename: `Listado_Pacientes_${filenameDate}_${uniqueSuffix}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, allowTaint: true },
         jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
@@ -411,7 +472,7 @@ function Pacientes() {
           setRegValidating(true);
           const fd = new FormData();
           fd.append('imagen', file);
-          const res = await axios.post('http://localhost:5000/api/validacion/rcx', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+          const res = await axios.post('http://localhost:5000/api/validacion/rcx', fd);
           if (res.data && typeof res.data.valid !== 'undefined') {
             if (res.data.valid) {
               setRegValidated(true);
@@ -477,7 +538,7 @@ function Pacientes() {
           setEditValidating(true);
           const fd = new FormData();
           fd.append('imagen', file);
-          const res = await axios.post('http://localhost:5000/api/validacion/rcx', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+          const res = await axios.post('http://localhost:5000/api/validacion/rcx', fd);
           if (res.data && typeof res.data.valid !== 'undefined') {
             if (res.data.valid) {
               setEditValidated(true);
@@ -550,7 +611,7 @@ function Pacientes() {
       if (editFormData.fechaNacimiento) formDataToSend.append('fechaNacimiento', editFormData.fechaNacimiento);
       if (editFormData.imagen) formDataToSend.append('imagen', editFormData.imagen);
 
-      const res = await axios.patch(`http://localhost:5000/api/pacientes/${editFormData.id}`, formDataToSend, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await axios.patch(`http://localhost:5000/api/pacientes/${editFormData.id}`, formDataToSend);
       if (res.status === 200) {
         setModal({ open: true, title: 'Éxito', message: 'Paciente actualizado.' });
         setEditOpen(false);
@@ -703,13 +764,95 @@ function Pacientes() {
     }
   };
 
+  const handleCrearNuevoAnalisis = async (idPaciente) => {
+    return;
+  };
+
+  const handleNewAnalisisFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setNewAnalisisFile(file);
+      setNewAnalisisPreview(URL.createObjectURL(file));
+      setNewAnalisisValidated(false);
+      setNewAnalisisValidationError(null);
+
+      (async () => {
+        try {
+          setNewAnalisisValidating(true);
+          const fd = new FormData();
+          fd.append('imagen', file);
+          const res = await axios.post('http://localhost:5000/api/validacion/rcx', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+          if (res.data && typeof res.data.valid !== 'undefined') {
+            if (res.data.valid) {
+              setNewAnalisisValidated(true);
+              setNewAnalisisValidationError(null);
+            } else {
+              setNewAnalisisValidated(false);
+              setNewAnalisisValidationError('La imagen no es una radiografía de tórax válida.');
+            }
+          } else {
+            setNewAnalisisValidated(false);
+            setNewAnalisisValidationError('Respuesta inválida del servidor de validación');
+          }
+        } catch (err) {
+          console.error('Error validando imagen RCX (nuevo análisis):', err);
+          setNewAnalisisValidated(false);
+          setNewAnalisisValidationError('La imagen no es una radiografía de tórax válida.');
+        } finally {
+          setNewAnalisisValidating(false);
+        }
+      })();
+    }
+  };
+
+  const handleCrearNuevoAnalisisSubmit = async () => {
+    if (!newAnalisisPacienteId) return;
+    setNewAnalisisLoading(true);
+    try {
+      const usuario = localStorage.getItem('usuario');
+      if (!usuario) {
+        setModal({ open: true, title: 'Sesión', message: 'No hay sesión activa.' });
+        return;
+      }
+      if (!newAnalisisFile) {
+        setModal({ open: true, title: 'Validación', message: 'Por favor seleccione una imagen para el nuevo análisis.' });
+        return;
+      }
+      if (newAnalisisValidating) {
+        setModal({ open: true, title: 'Validación', message: 'La imagen aún se está validando. Por favor espere e intente nuevamente.' });
+        return;
+      }
+      if (!newAnalisisValidated) {
+        setModal({ open: true, title: 'Validación', message: newAnalisisValidationError || 'La imagen no es una radiografía de tórax válida. Operación cancelada.' });
+        return;
+      }
+
+      const fd = new FormData();
+      fd.append('usuario', usuario);
+      fd.append('imagen', newAnalisisFile);
+
+      const res = await axios.post(`http://localhost:5000/api/analisis/nuevo/${newAnalisisPacienteId}`, fd);
+      if (res.status === 201) {
+        setModal({ open: true, title: 'Éxito', message: 'Nuevo análisis creado y marcado como pendiente.' });
+        setNewAnalisisOpen(false);
+        setNewAnalisisPreview(null);
+        setNewAnalisisFile(null);
+        fetchPacientes();
+      }
+    } catch (err) {
+      setModal({ open: true, title: 'Error', message: err.response?.data?.error || 'Error al crear nuevo análisis.' });
+    } finally {
+      setNewAnalisisLoading(false);
+    }
+  };
+
   const totalPages = Math.max(
     1,
     Math.ceil(pacientesFiltrados.length / pageSize),
   );
 
   return (
-    <Layout title="Gestión de Pacientes y Análisis">
+    <Layout title="Gestión de Pacientes - Historial de Análisis">
       <div className="px-2 sm:px-4 py-2">
 
 
@@ -808,7 +951,7 @@ function Pacientes() {
             <div className="flex items-start justify-between mb-2">
               <h3 className="text-lg font-semibold text-gray-900 mb-0 flex items-center">
                 <span className="w-1 h-5 bg-teal-600 mr-3 rounded"></span>
-                Pacientes y Análisis
+                Pacientes - Historial de Análisis
               </h3>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">
@@ -920,6 +1063,28 @@ function Pacientes() {
                                 <button onClick={() => openEditModal(paciente)} className="p-1">
                                   <Pencil className="w-4 h-4 text-blue-600 hover:text-blue-800 cursor-pointer" />
                                 </button>
+                                {(() => {
+                                  const isPending = paciente.porcentaje === null || typeof paciente.porcentaje === 'undefined';
+                                  return (
+                                    <button
+                                      onClick={() => {
+                                        if (isPending) return;
+                                        setNewAnalisisPacienteId(paciente.id);
+                                        setNewAnalisisPacienteData(paciente);
+                                        setNewAnalisisFile(null);
+                                        setNewAnalisisPreview(null);
+                                        setNewAnalisisValidated(false);
+                                        setNewAnalisisValidationError(null);
+                                        setNewAnalisisOpen(true);
+                                      }}
+                                      className={`p-1 ${isPending ? 'text-gray-300 cursor-not-allowed' : 'text-teal-600 hover:text-teal-800'}`}
+                                      title={isPending ? 'No se puede crear análisis: paciente pendiente' : 'Crear nuevo análisis con nueva imagen'}
+                                      aria-disabled={isPending}
+                                    >
+                                      <Plus className="w-4 h-4" />
+                                    </button>
+                                  );
+                                })()}
                                 <button onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Eliminar paciente? Esta acción no se puede deshacer.', onConfirm: () => { setModal({ open: false }); handleDeletePaciente(paciente.id); } })} className="p-1">
                                   <Trash2 className="w-4 h-4 text-red-600 hover:text-red-800 cursor-pointer" />
                                 </button>
@@ -1111,6 +1276,131 @@ function Pacientes() {
                             <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
                           ) : null}
                           {regLoading ? 'Registrando...' : 'Registrar Paciente'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {newAnalisisOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+                <div className="absolute inset-0 bg-black opacity-40" onClick={() => { setNewAnalisisOpen(false); setNewAnalisisFile(null); setNewAnalisisPreview(null); setNewAnalisisPacienteData(null); setNewAnalisisPacienteId(null); }} />
+                <div className="relative z-10 w-full max-w-3xl mx-auto transform transition-all duration-200 ease-out scale-100">
+                  <div className="bg-white rounded-xl shadow-2xl overflow-hidden max-h-[90vh]">
+                    <div className="bg-gradient-to-r from-teal-50 to-white p-4 border-b">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-teal-100 rounded-md flex items-center justify-center">
+                            <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"></path></svg>
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-800">Nuevo Análisis</h3>
+                            <p className="text-xs text-gray-500">Sube una nueva radiografía para crear un análisis pendiente</p>
+                          </div>
+                        </div>
+                        <button onClick={() => { setNewAnalisisOpen(false); setNewAnalisisPacienteData(null); setNewAnalisisPacienteId(null); }} className="p-2 rounded-md text-gray-500 hover:bg-gray-100">
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="p-6">
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Nombres</label>
+                              <input type="text" value={newAnalisisPacienteData ? (newAnalisisPacienteData.nombreCompleto.split(' ')[0] || '') : ''} readOnly className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-700" />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Apellidos</label>
+                              <input type="text" value={newAnalisisPacienteData ? (newAnalisisPacienteData.nombreCompleto.split(' ').slice(1).join(' ') || '') : ''} readOnly className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-700" />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">DNI</label>
+                              <input type="text" value={newAnalisisPacienteData ? (newAnalisisPacienteData.dni || '') : ''} readOnly className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-700" />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Fecha de Nacimiento</label>
+                              <input type="date" value={newAnalisisPacienteData ? (newAnalisisPacienteData.fechaNacimiento || '') : ''} readOnly className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-700" />
+                            </div>
+                            <div className="md:col-span-2">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">Género</label>
+                              <div className="flex items-center space-x-6 mt-3">
+                                <label className="flex items-center space-x-2">
+                                  <input type="radio" name="genero_new" value="M" checked={newAnalisisPacienteData ? newAnalisisPacienteData.sexo === 'M' || newAnalisisPacienteData.sexo === 'M' : false} readOnly disabled />
+                                  <span>M</span>
+                                </label>
+                                <label className="flex items-center space-x-2">
+                                  <input type="radio" name="genero_new" value="F" checked={newAnalisisPacienteData ? newAnalisisPacienteData.sexo === 'F' || newAnalisisPacienteData.sexo === 'F' : false} readOnly disabled />
+                                  <span>F</span>
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Radiografía de tórax</label>
+                            <input ref={newAnalisisFileInputRef} type="file" name="imagen" accept="image/*,.dcm" onChange={handleNewAnalisisFileChange} className="hidden" />
+                            <div style={{display: 'flex', gap: 12, alignItems: 'center'}}>
+                              <div
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => newAnalisisFileInputRef.current && newAnalisisFileInputRef.current.click()}
+                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') newAnalisisFileInputRef.current && newAnalisisFileInputRef.current.click(); }}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 12,
+                                  padding: '10px 14px',
+                                  borderRadius: 10,
+                                  border: '1px solid rgba(13,148,136,0.15)',
+                                  background: '#ffffff',
+                                  boxShadow: '0 1px 2px rgba(16,24,40,0.03)',
+                                  cursor: 'pointer',
+                                  minWidth: 220,
+                                }}
+                                aria-label="Seleccionar radiografía (nuevo análisis)"
+                              >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                                  <path d="M16 16L21 11" stroke="#0d9488" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                  <path d="M21 11V17C21 18.1046 20.1046 19 19 19H5C3.89543 19 3 18.1046 3 17V7C3 5.89543 3.89543 5 5 5H11" stroke="#0d9488" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                  <path d="M7 9H7.01" stroke="#0d9488" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                                <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-start'}}>
+                                  <span style={{fontSize: 14, color: '#0f766e', fontWeight: 600}}>Seleccionar radiografía</span>
+                                  <span style={{fontSize: 12, color: '#6b7280'}}>{newAnalisisFile ? newAnalisisFile.name : 'Arrastra o haz clic para seleccionar'}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        
+                        </div>
+
+                        <div className="flex items-center justify-center">
+                          {newAnalisisPreview ? (
+                            <img src={newAnalisisPreview} alt="Preview" className="w-48 h-56 object-cover rounded-md shadow-lg border" />
+                          ) : (
+                            <div className="w-48 h-56 flex items-center justify-center text-gray-400 border-2 border-dashed rounded-md">Sin imagen</div>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-center">
+                          {newAnalisisValidating ? (
+                            <p className="text-sm text-gray-500 mt-2">Validando imagen...</p>
+                          ) : newAnalisisValidated ? (
+                            <p className="text-sm text-green-600 mt-2">Radiografía de tórax válida</p>
+                          ) : newAnalisisValidationError ? (
+                            <p className="text-sm text-red-600 mt-2">{newAnalisisValidationError}</p>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-3 mt-6">
+                        <button onClick={() => { setNewAnalisisOpen(false); setNewAnalisisFile(null); setNewAnalisisPreview(null); setNewAnalisisPacienteData(null); setNewAnalisisPacienteId(null); }} className="px-4 py-2 border border-gray-200 rounded-md bg-white text-gray-700 hover:bg-gray-50">Cancelar</button>
+                        <button onClick={handleCrearNuevoAnalisisSubmit} disabled={newAnalisisLoading} className="px-4 py-2 bg-teal-600 text-white rounded-md shadow hover:bg-teal-700 inline-flex items-center">
+                          {newAnalisisLoading ? (
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                          ) : null}
+                          {newAnalisisLoading ? 'Creando...' : 'Crear análisis'}
                         </button>
                       </div>
                     </div>

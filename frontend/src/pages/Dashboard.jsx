@@ -207,9 +207,9 @@ function Dashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
             <div className="p-6 bg-gradient-to-br from-white to-slate-50 rounded-3xl shadow-lg flex items-center justify-between border border-gray-100 hover:shadow-xl transition">
               <div>
-                <p className="text-gray-500 text-sm">Pacientes en el período</p>
+                <p className="text-gray-500 text-sm">Cantidad de pacientes</p>
                 <h2 className="text-2xl font-extrabold text-gray-900">{stats.total_pacientes_periodo ?? 0}</h2>
-                <p className="text-xs text-gray-400 mt-1">Comparado con el período anterior</p>
+                <p className="text-xs text-gray-400 mt-1">En el período seleccionado</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center ring-1 ring-gray-200">
                 <Users className="w-6 h-6 text-blue-600" />
@@ -220,7 +220,7 @@ function Dashboard() {
               <div>
                 <p className="text-gray-500 text-sm">Cantidad de pacientes con análisis &gt; 50%</p>
                 <h2 className="text-2xl font-extrabold text-gray-900">{stats.pacientes_con_positivo ?? 0}</h2>
-                <p className="text-xs text-gray-400 mt-1">Casos con probabilidad alta</p>
+                <p className="text-xs text-gray-400 mt-1">En el período seleccionado</p>
               </div>
               <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center ring-1 ring-gray-200">
                 <Activity className="w-6 h-6 text-red-500" />
@@ -279,12 +279,11 @@ function Dashboard() {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e6e9ef" />
                   <XAxis dataKey="mes" />
-                  <YAxis label={{ value: 'Cantidad', angle: -90, position: 'insideLeft' }} />
+                  <YAxis label={{ value: 'Cantidad de análisis', angle: -90, position: 'insideLeft' }} />
                   <Tooltip content={<CustomBarTooltip />} />
                   <Legend />
-                  {/** Build counts from percentages and total_analisis */}
-                  <Bar name="Mayor al 50%" dataKey="positivos_count" fill="url(#gradPos)" radius={[8,8,0,0]} barSize={40} />
-                  <Bar name="Menor o igual al 50%" dataKey="negativos_count" fill="url(#gradNeg)" radius={[8,8,0,0]} barSize={40} />
+                  <Bar name="Mayor al 50% de peligro" dataKey="positivos_count" fill="url(#gradPos)" radius={[8,8,0,0]} barSize={40} />
+                  <Bar name="Menor o igual al 50% de peligro" dataKey="negativos_count" fill="url(#gradNeg)" radius={[8,8,0,0]} barSize={40} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
