@@ -64,6 +64,7 @@ function Pacientes() {
   const [editPreview, setEditPreview] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
   const editFileInputRef = useRef(null);
+  const [editImageAllowed, setEditImageAllowed] = useState(true);
   const [editValidating, setEditValidating] = useState(false);
   const [editValidated, setEditValidated] = useState(false);
   const [editValidationError, setEditValidationError] = useState(null);
@@ -445,6 +446,7 @@ function Pacientes() {
       imagen: null,
     });
     setEditPreview(null);
+    setEditImageAllowed(!(Number(paciente.analisisCount || 0) > 0));
     setEditOpen(true);
   };
 
@@ -462,6 +464,7 @@ function Pacientes() {
   };
 
   const handleEditImageChange = (e) => {
+    if (!editImageAllowed) return;
     const file = e.target.files[0];
     if (file) {
       setEditFormData((prev) => ({ ...prev, imagen: file }));
@@ -523,6 +526,11 @@ function Pacientes() {
       }
 
       if (editFormData.imagen) {
+        if (!editImageAllowed) {
+          setModal({ open: true, title: 'Operación no permitida', message: 'No se puede cambiar la radiografía: este paciente ya tiene al menos un análisis registrado.' });
+          setEditLoading(false);
+          return;
+        }
         if (editValidating) {
           setModal({ open: true, title: 'Validación', message: 'La imagen aún se está validando. Por favor espere e intente nuevamente.' });
           return;
@@ -1157,8 +1165,8 @@ function Pacientes() {
                               <div
                                 role="button"
                                 tabIndex={0}
-                                onClick={() => editFileInputRef.current && editFileInputRef.current.click()}
-                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') editFileInputRef.current && editFileInputRef.current.click(); }}
+                                onClick={() => { if (!editImageAllowed) return; editFileInputRef.current && editFileInputRef.current.click(); }}
+                                onKeyDown={(e) => { if (!editImageAllowed) return; if (e.key === 'Enter' || e.key === ' ') editFileInputRef.current && editFileInputRef.current.click(); }}
                                 style={{
                                   display: 'flex',
                                   alignItems: 'center',
@@ -1168,10 +1176,13 @@ function Pacientes() {
                                   border: '1px solid rgba(13,148,136,0.15)',
                                   background: '#ffffff',
                                   boxShadow: '0 1px 2px rgba(16,24,40,0.03)',
-                                  cursor: 'pointer',
+                                  cursor: editImageAllowed ? 'pointer' : 'not-allowed',
                                   minWidth: 220,
+                                  opacity: editImageAllowed ? 1 : 0.6,
                                 }}
                                 aria-label="Seleccionar radiografía (editar)"
+                                aria-disabled={!editImageAllowed}
+                                title={editImageAllowed ? 'Seleccionar radiografía' : 'No se puede editar la radiografía porque este paciente ya tiene análisis'}
                               >
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
                                   <path d="M16 16L21 11" stroke="#0d9488" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -1180,11 +1191,14 @@ function Pacientes() {
                                 </svg>
                                 <div style={{display: 'flex', flexDirection: 'column', alignItems: 'flex-start'}}>
                                   <span style={{fontSize: 14, color: '#0f766e', fontWeight: 600}}>Seleccionar radiografía</span>
-                                  <span style={{fontSize: 12, color: '#6b7280'}}>{editFormData.imagen ? editFormData.imagen.name : 'Arrastra o haz clic para seleccionar'}</span>
+                                  <span style={{fontSize: 12, color: '#6b7280'}}>{editFormData.imagen ? editFormData.imagen.name : (editImageAllowed ? 'Arrastra o haz clic para seleccionar' : 'Edición de imagen no permitida')}</span>
                                 </div>
                               </div>
                             </div>
                             <p className="text-xs text-gray-400 mt-1">Subir una nueva imagen creará un nuevo análisis pendiente.</p>
+                            {!editImageAllowed && (
+                              <p className="text-xs text-red-600 mt-1">No es posible modificar la radiografía porque este paciente ya tiene uno o más análisis registrados.</p>
+                            )}
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Género</label>

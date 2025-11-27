@@ -255,6 +255,12 @@ def actualizar_paciente(id_paciente):
             cur.execute(sql, tuple(params))
 
         if imagen:
+            cur.execute("SELECT COUNT(*) FROM prediccion WHERE id_paciente = %s AND porcentaje IS NOT NULL", (id_paciente,))
+            done_count = cur.fetchone()[0]
+            if done_count > 0:
+                cur.close()
+                conn.close()
+                return jsonify({"error": "No se puede modificar la radiografía: ya existen análisis realizados para este paciente."}), 400
             filename = secure_filename(f"{dni or 'pac'}_{datetime.now().strftime('%Y%m%d%H%M%S')}.png")
             upload_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', filename)
             imagen.save(upload_path)
