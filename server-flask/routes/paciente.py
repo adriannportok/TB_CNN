@@ -28,6 +28,7 @@ def get_pacientes():
                 WHEN EXISTS (SELECT 1 FROM prediccion p2 WHERE p2.id_paciente = p.id_paciente AND p2.porcentaje IS NULL) THEN NULL
                 ELSE pr_last.porcentaje
             END AS porcentaje,
+            COALESCE(ac.analisis_count, 0) AS analisis_count,
             CASE
                 WHEN EXISTS (SELECT 1 FROM prediccion p2 WHERE p2.id_paciente = p.id_paciente AND p2.porcentaje IS NULL) THEN 'Pendiente'
                 WHEN pr_last.porcentaje IS NOT NULL THEN 'Analizado'
@@ -41,6 +42,12 @@ def get_pacientes():
             ORDER BY fecha_pred DESC NULLS LAST
             LIMIT 1
         ) pr_last ON true
+        LEFT JOIN (
+            SELECT id_paciente, COUNT(*) AS analisis_count
+            FROM prediccion
+            WHERE porcentaje IS NOT NULL
+            GROUP BY id_paciente
+        ) ac ON ac.id_paciente = p.id_paciente
         """
 
         params = []
@@ -70,7 +77,8 @@ def get_pacientes():
                 "fecha_nac": row[6].strftime("%Y-%m-%d") if row[6] else None,
                 "fecha_registro": row[7],
                 "porcentaje": row[8],
-                "estado_analisis": row[9]
+                "analisis_count": int(row[9]) if row[9] is not None else 0,
+                "estado_analisis": row[10]
             }
             for row in rows
         ]

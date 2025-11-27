@@ -64,6 +64,9 @@ function Pacientes() {
   const [editPreview, setEditPreview] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
   const editFileInputRef = useRef(null);
+  const [editValidating, setEditValidating] = useState(false);
+  const [editValidated, setEditValidated] = useState(false);
+  const [editValidationError, setEditValidationError] = useState(null);
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [imageModalData, setImageModalData] = useState(null);
 
@@ -78,7 +81,7 @@ function Pacientes() {
       if (id_usuario) params.id_usuario = id_usuario;
       const res = await axios.get("http://localhost:5000/api/pacientes", { params });
       if (Array.isArray(res.data)) {
-        const basic = res.data.map((p) => ({
+        const data = res.data.map((p) => ({
           id: p.id_paciente,
           nombreCompleto: `${p.nombres} ${p.apellidos}`,
           dni: p.dni,
@@ -87,21 +90,9 @@ function Pacientes() {
           sexo: p.sexo,
           fechaRegistro: p.fecha_registro,
           porcentaje: p.porcentaje,
-          analisisCount: 0,
+          analisisCount: Number(p.analisis_count || 0),
         }));
 
-        const promises = basic.map((bp) =>
-          axios
-            .get(`http://localhost:5000/api/analisis/predicciones/${bp.id}`)
-            .then((r) => ({ id: bp.id, count: Array.isArray(r.data) ? r.data.length : 0 }))
-            .catch(() => ({ id: bp.id, count: 0 }))
-        );
-
-        const results = await Promise.all(promises);
-        const countsMap = {};
-        results.forEach((r) => { countsMap[r.id] = r.count; });
-
-        const data = basic.map((bp) => ({ ...bp, analisisCount: countsMap[bp.id] || 0 }));
         const computedMax = data.reduce((m, it) => Math.max(m, it.analisisCount), 0);
         setMaxAnalisis(computedMax);
 
@@ -475,14 +466,74 @@ function Pacientes() {
     if (file) {
       setEditFormData((prev) => ({ ...prev, imagen: file }));
       setEditPreview(URL.createObjectURL(file));
+      setEditValidated(false);
+      setEditValidationError(null);
+
+      (async () => {
+        try {
+          setEditValidating(true);
+          const fd = new FormData();
+          fd.append('imagen', file);
+          const res = await axios.post('http://localhost:5000/api/validacion/rcx', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+          if (res.data && typeof res.data.valid !== 'undefined') {
+            if (res.data.valid) {
+              setEditValidated(true);
+              setEditValidationError(null);
+            } else {
+              setEditValidated(false);
+              setEditValidationError('La imagen no es una radiografía de tórax válida.');
+            }
+          } else {
+            setEditValidated(false);
+            setEditValidationError('Error al validar la imagen.');
+          }
+        } catch (err) {
+          console.error('Error validando imagen RCX (editar):', err);
+          setEditValidated(false);
+          setEditValidationError('La imagen no es una radiografía de tórax válida.');
+        } finally {
+          setEditValidating(false);
+        }
+      })();
     }
   };
 
   const handleEditSubmit = async () => {
     setEditLoading(true);
     try {
-      const formDataToSend = new FormData();
+      const nameRegex = /^[A-Za-zÀ-ÖØ-öø-ÿ\s'\-]+$/;
+      if (editFormData.nombre && !nameRegex.test(editFormData.nombre)) {
+        setModal({ open: true, title: 'Validación', message: 'Los nombres solo pueden contener letras, espacios, guiones o apóstrofes.' });
+        return;
+      }
+      if (editFormData.apellido && !nameRegex.test(editFormData.apellido)) {
+        setModal({ open: true, title: 'Validación', message: 'Los apellidos solo pueden contener letras, espacios, guiones o apóstrofes.' });
+        return;
+      }
+      if (editFormData.dni && !/^\d{1,8}$/.test(editFormData.dni)) {
+        setModal({ open: true, title: 'Validación', message: 'El DNI debe contener solo números y como máximo 8 dígitos.' });
+        return;
+      }
+
       const usuario = localStorage.getItem('usuario');
+      if (!usuario) {
+        setModal({ open: true, title: 'Sesión', message: 'No hay sesión activa.' });
+        setEditOpen(false);
+        return;
+      }
+
+      if (editFormData.imagen) {
+        if (editValidating) {
+          setModal({ open: true, title: 'Validación', message: 'La imagen aún se está validando. Por favor espere e intente nuevamente.' });
+          return;
+        }
+        if (!editValidated) {
+          setModal({ open: true, title: 'Validación', message: editValidationError || 'La imagen no es una radiografía de tórax válida. Edición cancelada.' });
+          return;
+        }
+      }
+
+      const formDataToSend = new FormData();
       formDataToSend.append('usuario', usuario || '');
       if (editFormData.nombre) formDataToSend.append('nombre', editFormData.nombre);
       if (editFormData.apellido) formDataToSend.append('apellido', editFormData.apellido);
@@ -496,6 +547,8 @@ function Pacientes() {
         setModal({ open: true, title: 'Éxito', message: 'Paciente actualizado.' });
         setEditOpen(false);
         setEditPreview(null);
+        setEditValidated(false);
+        setEditValidationError(null);
         fetchPacientes();
       }
     } catch (err) {
@@ -1154,6 +1207,15 @@ function Pacientes() {
                           ) : (
                             <div className="w-48 h-56 flex items-center justify-center text-gray-400 border-2 border-dashed rounded-md">Sin imagen nueva</div>
                           )}
+                        </div>
+                        <div className="flex items-center justify-center">
+                          {editValidating ? (
+                            <p className="text-sm text-gray-500 mt-2">Validando imagen...</p>
+                          ) : editValidated ? (
+                            <p className="text-sm text-green-600 mt-2">Radiografía de tórax válida</p>
+                          ) : editValidationError ? (
+                            <p className="text-sm text-red-600 mt-2">{editValidationError}</p>
+                          ) : null}
                         </div>
                       </div>
 
