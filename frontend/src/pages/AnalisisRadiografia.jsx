@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from 'react-router-dom';
 import Layout from "../components/Layouts";
 import { Upload, Brain, CheckCircle, AlertCircle, History, Loader2 } from "lucide-react";
 import axios from "axios";
@@ -19,10 +20,12 @@ function AnalisisRadiografia() {
   const [loadingPredId, setLoadingPredId] = useState(null);
   const [notifModal, setNotifModal] = useState({ open: false, title: "", message: "", type: "info" });
 
-  const openModal = ({ title, message, type = "info" }) => {
-    setNotifModal({ open: true, title, message, type });
+  const navigate = useNavigate();
+
+  const openModal = ({ title, message, type = "info", secondaryAction = null }) => {
+    setNotifModal({ open: true, title, message, type, secondaryAction });
   };
-  const closeModal = () => setNotifModal((prev) => ({ ...prev, open: false }));
+  const closeModal = () => setNotifModal((prev) => ({ ...prev, open: false, secondaryAction: null }));
 
   const [itemsPorPaginaPendientes, setItemsPorPaginaPendientes] = useState(6);
   const [paginaActualPendientes, setPaginaActualPendientes] = useState(1);
@@ -66,8 +69,11 @@ function AnalisisRadiografia() {
       }
       const response = await axios.get(`${API_BASE}/api/analisis`, { params: { usuario } });
       if (response.data) {
-        setPacientesPendientes(response.data.pendientes || []);
-        setPacientesAnalizados(response.data.realizados || []);
+        const pendientes = response.data.pendientes || [];
+        const realizados = response.data.realizados || [];
+
+        setPacientesPendientes(pendientes);
+        setPacientesAnalizados(realizados);
       } else {
         setPacientesAnalizados([]);
         setPacientesPendientes([]);
@@ -125,10 +131,10 @@ function AnalisisRadiografia() {
         }
 
         const message = `${body}\n\n${recomendacion}`;
-        openModal({ title, message, type: simulado ? "warning" : "success" });
+        openModal({ title, message, type: simulado ? "warning" : "success", secondaryAction: { text: 'Ir a Pacientes', onClick: () => { navigate('/pacientes'); } } });
         await fetchAnalisis();
       }
-    } catch (error) {
+      } catch (error) {
       console.error("Error en el análisis:", error);
       openModal({ title: "Error", message: "Error al procesar la radiografía", type: "error" });
     } finally {
@@ -272,7 +278,28 @@ function AnalisisRadiografia() {
             <div className="relative bg-white rounded-lg shadow-lg max-w-sm w-full p-6 mx-4">
               <div className="mb-3 text-center"><h3 className="text-lg font-semibold text-gray-800">{notifModal.title || "Mensaje"}</h3></div>
               <p className="text-gray-600 whitespace-pre-line text-center">{notifModal.message}</p>
-              <div className="mt-5 flex justify-center"><button onClick={closeModal} className="px-5 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700">Aceptar</button></div>
+              <div className="mt-5 flex justify-center gap-3">
+                {notifModal.secondaryAction ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        try {
+                          notifModal.secondaryAction.onClick && notifModal.secondaryAction.onClick();
+                        } catch (e) {
+                          console.error('Error en secondaryAction:', e);
+                        }
+                        closeModal();
+                      }}
+                      className="px-4 py-2 border-teal-200 bg-teal-100 text-teal-700 rounded hover:bg-teal-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-300"
+                    >
+                      {notifModal.secondaryAction.text || 'Ir'}
+                    </button>
+                    <button onClick={closeModal} className="px-5 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700">Aceptar</button>
+                  </>
+                ) : (
+                  <button onClick={closeModal} className="px-5 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700">Aceptar</button>
+                )}
+              </div>
             </div>
           </div>
         )}

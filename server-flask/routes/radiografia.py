@@ -36,7 +36,7 @@ def listar_analisis():
             FROM prediccion p
             JOIN paciente pac ON p.id_paciente = pac.id_paciente
             WHERE pac.id_usuario = %s AND p.porcentaje IS NULL
-            ORDER BY p.fecha_pred DESC
+            ORDER BY (p.fecha_pred IS NULL) ASC, p.id_pred DESC
             """,
             (medico_id,)
         )
@@ -144,7 +144,7 @@ def listar_pacientes_pendientes():
             FROM prediccion p
             JOIN paciente pac ON p.id_paciente = pac.id_paciente
             WHERE p.porcentaje IS NULL
-            ORDER BY p.fecha_pred DESC
+            ORDER BY (p.fecha_pred IS NULL) DESC, p.id_pred DESC
             """
         )
         rows = cur.fetchall()
@@ -281,7 +281,6 @@ def crear_nuevo_analisis(id_paciente):
     Requiere JSON body con 'usuario' para verificar que el médico puede operar sobre el paciente.
     Solo se permite si NO existe un análisis pendiente (porcentaje IS NULL) para ese paciente."""
     try:
-        # No intentar parsear JSON: soportamos multipart/form-data (imagen + usuario)
         usuario = request.form.get('usuario') or request.args.get('usuario')
         if not usuario:
             return jsonify({'error': "Usuario (médico) requerido"}), 400
@@ -302,7 +301,6 @@ def crear_nuevo_analisis(id_paciente):
             conn.close()
             return jsonify({'error': 'Paciente no encontrado o no pertenece al médico'}), 404
 
-        # Comprobar si hay análisis pendientes
         cur.execute("SELECT COUNT(*) FROM prediccion WHERE id_paciente = %s AND porcentaje IS NULL", (id_paciente,))
         pendientes = cur.fetchone()[0]
         if pendientes > 0:
@@ -310,14 +308,12 @@ def crear_nuevo_analisis(id_paciente):
             conn.close()
             return jsonify({'error': 'No se puede crear un nuevo análisis: el paciente figura como pendiente.'}), 400
 
-        # Si llega una imagen en multipart, guardarla y crear el análisis con esa imagen
         imagen = request.files.get('imagen')
         if imagen:
             try:
                 filename = secure_filename(f"pac_{id_paciente}_{datetime.now().strftime('%Y%m%d%H%M%S')}.png")
                 base_dir = os.path.dirname(os.path.dirname(__file__))
                 uploads_dir = os.path.join(base_dir, 'uploads')
-                # Asegurar que el directorio exista
                 os.makedirs(uploads_dir, exist_ok=True)
                 upload_path = os.path.join(uploads_dir, filename)
                 imagen.save(upload_path)
@@ -330,7 +326,6 @@ def crear_nuevo_analisis(id_paciente):
                 print('Error guardando imagen nuevo análisis:', e)
                 return jsonify({'error': 'Error guardando la imagen del análisis.'}), 500
         else:
-            # Obtener la última ruta de imagen existente y duplicarla
             cur.execute("SELECT ruta_imagen FROM prediccion WHERE id_paciente = %s ORDER BY fecha_pred DESC LIMIT 1", (id_paciente,))
             last = cur.fetchone()
             if not last or not last[0]:
