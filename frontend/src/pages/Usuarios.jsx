@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import Layout from "../components/Layouts";
 import axios from "axios";
-import { Pencil, Trash2, ThumbsDown, Plus, X } from "lucide-react";
+import { Pencil, Trash2, ThumbsDown, ThumbsUp, Plus, X } from "lucide-react";
 import AlertModal from "../components/AlertModal";
 
 function Usuarios() {
@@ -154,6 +154,32 @@ function Usuarios() {
     }
   };
 
+  const handleToggleEstado = (usuario) => {
+    if (!usuario) return;
+    const isActive = usuario.estado === true || usuario.estado === 1 || String(usuario.estado).toLowerCase() === 'true' || String(usuario.estado) === '1';
+    const nuevoEstado = !isActive;
+    setModal({
+      open: true,
+      title: 'Confirmar',
+      message: `${nuevoEstado ? '¿Habilitar' : '¿Dar de baja'} al usuario ${usuario.usuario}?`,
+      confirmText: nuevoEstado ? 'Habilitar' : 'Dar baja',
+      cancelText: 'Cancelar',
+      onConfirm: async () => {
+        try {
+          await axios.patch(`http://localhost:5000/api/usuarios/${usuario.id}/estado`, { estado: nuevoEstado });
+          setTimeout(() => {
+            setModal({ open: true, title: 'Éxito', message: nuevoEstado ? 'Usuario habilitado.' : 'Usuario dado de baja.' });
+          }, 200);
+          fetchUsuarios();
+        } catch (err) {
+          setTimeout(() => {
+            setModal({ open: true, title: 'Error', message: err.response?.data?.error || err.message || (nuevoEstado ? 'Error al habilitar.' : 'Error al dar de baja.') });
+          }, 200);
+        }
+      }
+    });
+  };
+
   const totalPages = Math.max(1, Math.ceil(usuariosFiltrados.length / pageSize));
 
   
@@ -219,14 +245,17 @@ function Usuarios() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-900">
                         <div className="flex justify-center items-center gap-3">
-                          <button className="relative group p-1">
-                            <Pencil className="w-4 h-4 text-blue-600 hover:text-blue-800 cursor-pointer" />
-                            <span className="pointer-events-none absolute -top-9 left-1/2 transform -translate-x-1/2 scale-95 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all bg-gray-800 text-white text-xs rounded px-2 py-1 shadow-lg whitespace-nowrap z-10">Editar usuario</span>
-                          </button>
-                          <button className="relative group p-1">
-                            <ThumbsDown className="w-4 h-4 text-red-600 hover:text-red-800 cursor-pointer" />
-                            <span className="pointer-events-none absolute -top-9 left-1/2 transform -translate-x-1/2 scale-95 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all bg-gray-800 text-white text-xs rounded px-2 py-1 shadow-lg whitespace-nowrap z-10">Dar baja usuario</span>
-                          </button>
+                          { (usuario.estado === false || String(usuario.estado).toLowerCase() === 'false' || String(usuario.estado) === '0') ? (
+                            <button onClick={() => handleToggleEstado(usuario)} className="relative group p-1">
+                              <ThumbsUp className={`w-4 h-4 text-green-600 hover:text-green-800 cursor-pointer`} />
+                              <span className="pointer-events-none absolute -top-9 left-1/2 transform -translate-x-1/2 scale-95 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all bg-gray-800 text-white text-xs rounded px-2 py-1 shadow-lg whitespace-nowrap z-10">Habilitar usuario</span>
+                            </button>
+                          ) : (
+                            <button onClick={() => handleToggleEstado(usuario)} className="relative group p-1">
+                              <ThumbsDown className={`w-4 h-4 text-red-600 hover:text-red-800 cursor-pointer`} />
+                              <span className="pointer-events-none absolute -top-9 left-1/2 transform -translate-x-1/2 scale-95 opacity-0 group-hover:scale-100 group-hover:opacity-100 transition-all bg-gray-800 text-white text-xs rounded px-2 py-1 shadow-lg whitespace-nowrap z-10">Dar baja usuario</span>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

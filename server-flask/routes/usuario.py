@@ -79,3 +79,40 @@ def create_usuario():
     except Exception as e:
         print(f"Error POST /api/usuarios: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+@usuario_bp.route('/usuarios/<int:id_usuario>/estado', methods=['PATCH'])
+def update_usuario_estado(id_usuario):
+    try:
+        data = request.get_json() or {}
+        if 'estado' not in data:
+            return jsonify({"error": "Falta campo 'estado'."}), 400
+
+        estado = data.get('estado')
+
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            UPDATE usuario
+            SET estado = %s
+            WHERE id_usuario = %s
+            RETURNING id_usuario
+            """,
+            (estado, id_usuario)
+        )
+        row = cur.fetchone()
+        if not row:
+            conn.rollback()
+            cur.close()
+            conn.close()
+            return jsonify({"error": "Usuario no encontrado."}), 404
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({"id_usuario": id_usuario, "estado": estado}), 200
+    except Exception as e:
+        print(f"Error PATCH /api/usuarios/{id_usuario}/estado: {e}")
+        return jsonify({"error": str(e)}), 500

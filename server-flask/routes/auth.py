@@ -16,7 +16,7 @@ def validar_credenciales(usuario, clave):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("SELECT id_usuario, clave, rol, nombres, apellidos FROM usuario WHERE usuario = %s", (usuario,))
+        cur.execute("SELECT id_usuario, clave, rol, nombres, apellidos, estado FROM usuario WHERE usuario = %s", (usuario,))
         result = cur.fetchone()
         print(f"[auth] validar_credenciales: buscando usuario='{usuario}' resultado={bool(result)}")
         cur.close()
@@ -25,8 +25,12 @@ def validar_credenciales(usuario, clave):
         if not result:
             return False, "Usuario no encontrado", None, None, None, None
 
-        id_usuario, clave_hash, rol, nombres, apellidos = result
-        print(f"[auth] validar_credenciales: encontrado id={id_usuario} rol={rol} nombres={nombres} apellidos={apellidos}")
+        id_usuario, clave_hash, rol, nombres, apellidos, estado = result
+        print(f"[auth] validar_credenciales: encontrado id={id_usuario} rol={rol} nombres={nombres} apellidos={apellidos} estado={estado}")
+
+        if estado is not None and (estado is False or str(estado).lower() in ['false', '0', 'f']):
+            print(f"[auth] validar_credenciales: usuario inactivo id={id_usuario}")
+            return False, "Usuario inactivo", None, None, None, None
 
         try:
             if check_password_hash(clave_hash, clave):

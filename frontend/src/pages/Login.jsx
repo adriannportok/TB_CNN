@@ -65,7 +65,17 @@ function Login() {
           }
         }, 900);
       } else {
-        setError('Credenciales incorrectas');
+        const serverMsg = data?.message;
+        if (serverMsg) {
+          const m = serverMsg.toString().toLowerCase();
+          if (m.includes('inactivo') || m.includes('no disponible')) {
+            setError('Usuario no disponible');
+          } else {
+            setError(serverMsg);
+          }
+        } else {
+          setError('Credenciales incorrectas');
+        }
       }
     } catch (err) {
       setError('Error de conexión con el servidor');
