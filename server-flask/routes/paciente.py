@@ -255,22 +255,22 @@ def actualizar_paciente(id_paciente):
             cur.execute(sql, tuple(params))
 
         if imagen:
-            cur.execute("SELECT COUNT(*) FROM prediccion WHERE id_paciente = %s AND porcentaje IS NOT NULL", (id_paciente,))
-            done_count = cur.fetchone()[0]
-            if done_count > 0:
-                cur.close()
-                conn.close()
-                return jsonify({"error": "No se puede modificar la radiografía: ya existen análisis realizados para este paciente."}), 400
-            filename = secure_filename(f"{dni or 'pac'}_{datetime.now().strftime('%Y%m%d%H%M%S')}.png")
-            upload_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', filename)
-            imagen.save(upload_path)
-            ruta_imagen = f'uploads/{filename}'
-
-            cur.execute("SELECT id_pred, ruta_imagen FROM prediccion WHERE id_paciente = %s ORDER BY fecha_pred DESC LIMIT 1", (id_paciente,))
+            cur.execute("SELECT id_pred, porcentaje, ruta_imagen FROM prediccion WHERE id_paciente = %s ORDER BY id_pred DESC LIMIT 1", (id_paciente,))
             last = cur.fetchone()
             if last:
                 last_id_pred = last[0]
-                old_ruta = last[1]
+                last_porcentaje = last[1]
+                old_ruta = last[2]
+                if last_porcentaje is not None:
+                    cur.close()
+                    conn.close()
+                    return jsonify({"error": "No se puede modificar la radiografía: el último análisis ya fue realizado"}), 400
+
+                filename = secure_filename(f"{dni or 'pac'}_{datetime.now().strftime('%Y%m%d%H%M%S')}.png")
+                upload_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', filename)
+                imagen.save(upload_path)
+                ruta_imagen = f'uploads/{filename}'
+
                 try:
                     if old_ruta:
                         base_dir = os.path.dirname(os.path.dirname(__file__))
@@ -283,6 +283,10 @@ def actualizar_paciente(id_paciente):
 
                 cur.execute("UPDATE prediccion SET ruta_imagen = %s, porcentaje = NULL, fecha_pred = NULL WHERE id_pred = %s", (ruta_imagen, last_id_pred))
             else:
+                filename = secure_filename(f"{dni or 'pac'}_{datetime.now().strftime('%Y%m%d%H%M%S')}.png")
+                upload_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads', filename)
+                imagen.save(upload_path)
+                ruta_imagen = f'uploads/{filename}'
                 cur.execute("INSERT INTO prediccion (ruta_imagen, id_paciente) VALUES (%s, %s)", (ruta_imagen, id_paciente))
 
         conn.commit()

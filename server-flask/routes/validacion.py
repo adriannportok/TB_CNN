@@ -8,6 +8,7 @@ validacion_bp = Blueprint('validacion', __name__)
 
 @validacion_bp.route('/validacion/rcx', methods=['POST'])
 def validar_rcx():
+    print("GEMINI_KEY_ENV =", os.environ.get("GEMINI_API_KEY"))
     try:
         if 'imagen' not in request.files:
             return jsonify({'error': 'No se encontró el campo imagen'}), 400
@@ -24,11 +25,21 @@ def validar_rcx():
         file.save(save_path)
 
         try:
-            from inference.model import validate_rcx_image
-        except Exception as e:
-            return jsonify({'error': f'Error al cargar módulo de inferencia: {e}'}), 500
+            # prefer external-first wrapper; si no existe, fallback a validate_rcx_image
+            from inference.model import validate_rcx_external_first as _validate_wrapper
+        except Exception:
+            try:
+                from inference.model import validate_rcx_image as _validate_wrapper
+            except Exception as e:
+                return jsonify({'error': f'Error al cargar módulo de inferencia: {e}'}), 500
 
-        result = validate_rcx_image(save_path)
+        result = _validate_wrapper(save_path)
+        # Log the validator pipeline result for debugging (no secrets)
+        try:
+            import logging as _logging
+            _logging.getLogger('inference.model').info('Validator pipeline returned: %s', result)
+        except Exception:
+            pass
         try:
             if os.path.exists(save_path):
                 os.remove(save_path)
@@ -45,8 +56,17 @@ def validar_rcx():
         threshold = result.get('threshold', None)
 
         valid = diagnostico == 'RCX'
+        # Si no es válido, devolver 400 para bloquear la subida desde el cliente
+        if not valid:
+            return jsonify({
+                'error': 'Imagen no válida (no es radiografía de tórax)',
+                'diagnostico': diagnostico,
+                'confianza': confianza,
+                'threshold': threshold,
+            }), 400
+
         return jsonify({
-            'valid': valid,
+            'valid': True,
             'diagnostico': diagnostico,
             'mse': mse,
             'mae': mae,

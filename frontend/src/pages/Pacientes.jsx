@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from 'react-dom';
 import Layout from "../components/Layouts";
 import axios from "axios";
 import { FileText } from "lucide-react";
@@ -7,6 +8,22 @@ import { Pencil, Trash2, ChevronDown, Plus, X, Download } from "lucide-react";
 import AlertModal from "../components/AlertModal";
 
 function Pacientes() {
+  function Tooltip({ children, text }) {
+    const [show, setShow] = useState(false);
+    return (
+      <div className="relative inline-flex" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+        {children}
+        {show && (
+          <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-50">
+            <div className="bg-gray-800 text-white text-xs rounded px-2 py-1 shadow-lg whitespace-nowrap">
+              {text}
+            </div>
+            <div className="w-2 h-2 bg-gray-800 transform rotate-45 -mt-1 mx-auto" />
+          </div>
+        )}
+      </div>
+    );
+  }
   const [filtros, setFiltros] = useState({
     nombreCompleto: "",
     dni: "",
@@ -80,6 +97,16 @@ function Pacientes() {
   const [newAnalisisValidated, setNewAnalisisValidated] = useState(false);
   const [newAnalisisValidationError, setNewAnalisisValidationError] = useState(null);
   const newAnalisisFileInputRef = useRef(null);
+
+  const [floatingTooltip, setFloatingTooltip] = useState(null);
+
+  const showFloatingTooltip = (text, targetEl) => {
+    if (!targetEl) return;
+    const rect = targetEl.getBoundingClientRect();
+    setFloatingTooltip({ text, rect });
+  };
+
+  const hideFloatingTooltip = () => setFloatingTooltip(null);
 
   useEffect(() => {
     fetchPacientes();
@@ -479,7 +506,7 @@ function Pacientes() {
               setRegValidationError(null);
             } else {
               setRegValidated(false);
-              setRegValidationError('La imagen no es una radiografía de tórax válida.');
+              setRegValidationError('La imagen no es una radiografía de tórax.');
             }
           } else {
             setRegValidated(false);
@@ -488,7 +515,7 @@ function Pacientes() {
         } catch (err) {
           console.error('Error validando imagen RCX:', err);
           setRegValidated(false);
-          setRegValidationError('La imagen no es una radiografía de tórax válida.');
+          setRegValidationError('La imagen no es una radiografía de tórax.');
         } finally {
           setRegValidating(false);
         }
@@ -507,7 +534,8 @@ function Pacientes() {
       imagen: null,
     });
     setEditPreview(null);
-    setEditImageAllowed(!(Number(paciente.analisisCount || 0) > 0));
+    const isPending = paciente.porcentaje === null || typeof paciente.porcentaje === 'undefined';
+    setEditImageAllowed(isPending);
     setEditOpen(true);
   };
 
@@ -545,7 +573,7 @@ function Pacientes() {
               setEditValidationError(null);
             } else {
               setEditValidated(false);
-              setEditValidationError('La imagen no es una radiografía de tórax válida.');
+              setEditValidationError('La imagen no es una radiografía de tórax.');
             }
           } else {
             setEditValidated(false);
@@ -554,7 +582,7 @@ function Pacientes() {
         } catch (err) {
           console.error('Error validando imagen RCX (editar):', err);
           setEditValidated(false);
-          setEditValidationError('La imagen no es una radiografía de tórax válida.');
+          setEditValidationError('La imagen no es una radiografía de tórax.');
         } finally {
           setEditValidating(false);
         }
@@ -588,7 +616,7 @@ function Pacientes() {
 
       if (editFormData.imagen) {
         if (!editImageAllowed) {
-          setModal({ open: true, title: 'Operación no permitida', message: 'No se puede cambiar la radiografía: este paciente ya tiene al menos un análisis registrado.' });
+          setModal({ open: true, title: 'Operación no permitida', message: 'No se puede cambiar la radiografía: solo se permite editar la última radiografía pendiente.' });
           setEditLoading(false);
           return;
         }
@@ -597,7 +625,7 @@ function Pacientes() {
           return;
         }
         if (!editValidated) {
-          setModal({ open: true, title: 'Validación', message: editValidationError || 'La imagen no es una radiografía de tórax válida. Edición cancelada.' });
+          setModal({ open: true, title: 'Validación', message: editValidationError || 'La imagen no es una radiografía de tórax. Edición cancelada.' });
           return;
         }
       }
@@ -674,7 +702,7 @@ function Pacientes() {
         return;
       }
       if (!regValidated) {
-        setModal({ open: true, title: "Validación", message: regValidationError || "La imagen no es una radiografía de tórax válida. Registro cancelado." });
+        setModal({ open: true, title: "Validación", message: regValidationError || "La imagen no es una radiografía de tórax. Registro cancelado." });
         return;
       }
 
@@ -788,7 +816,7 @@ function Pacientes() {
               setNewAnalisisValidationError(null);
             } else {
               setNewAnalisisValidated(false);
-              setNewAnalisisValidationError('La imagen no es una radiografía de tórax válida.');
+              setNewAnalisisValidationError('La imagen no es una radiografía de tórax.');
             }
           } else {
             setNewAnalisisValidated(false);
@@ -797,7 +825,7 @@ function Pacientes() {
         } catch (err) {
           console.error('Error validando imagen RCX (nuevo análisis):', err);
           setNewAnalisisValidated(false);
-          setNewAnalisisValidationError('La imagen no es una radiografía de tórax válida.');
+          setNewAnalisisValidationError('La imagen no es una radiografía de tórax.');
         } finally {
           setNewAnalisisValidating(false);
         }
@@ -823,7 +851,7 @@ function Pacientes() {
         return;
       }
       if (!newAnalisisValidated) {
-        setModal({ open: true, title: 'Validación', message: newAnalisisValidationError || 'La imagen no es una radiografía de tórax válida. Operación cancelada.' });
+        setModal({ open: true, title: 'Validación', message: newAnalisisValidationError || 'La imagen no es una radiografía de tórax. Operación cancelada.' });
         return;
       }
 
@@ -1048,46 +1076,59 @@ function Pacientes() {
                                 {(() => {
                                   const hasAnalisis = paciente.porcentaje !== null && typeof paciente.porcentaje !== 'undefined';
                                   const open = pacienteSeleccionadoId === paciente.id;
+                                  const tip = hasAnalisis ? (open ? 'Cerrar análisis previos' : 'Ver análisis previos') : 'No hay análisis';
                                   return (
-                                    <button
-                                      onClick={() => hasAnalisis && toggleMostrarPredicciones(paciente.id)}
-                                      aria-disabled={!hasAnalisis}
-                                      aria-expanded={open}
-                                      title={hasAnalisis ? (open ? 'Cerrar análisis' : 'Ver análisis') : 'No hay análisis'}
-                                      className={`p-1 rounded ${hasAnalisis ? 'text-teal-600 hover:text-teal-800' : 'text-gray-300 cursor-not-allowed'}`}
-                                    >
-                                      <ChevronDown className={`w-5 h-5 transform transition-transform duration-200 ${open ? 'rotate-180' : 'rotate-0'}`} />
-                                    </button>
+                                    <div className="relative group p-1" onMouseEnter={(e) => showFloatingTooltip(tip, e.currentTarget)} onMouseLeave={hideFloatingTooltip}>
+                                      <button
+                                        onClick={() => hasAnalisis && toggleMostrarPredicciones(paciente.id)}
+                                        aria-disabled={!hasAnalisis}
+                                        aria-expanded={open}
+                                        aria-label={tip}
+                                        className={`p-1 rounded ${hasAnalisis ? 'text-teal-600 hover:text-teal-800' : 'text-gray-300 cursor-not-allowed'}`}
+                                      >
+                                        <ChevronDown className={`w-5 h-5 transform transition-transform duration-200 ${open ? 'rotate-180' : 'rotate-0'}`} />
+                                      </button>
+                                    </div>
                                   );
                                 })()}
-                                <button onClick={() => openEditModal(paciente)} className="p-1">
-                                  <Pencil className="w-4 h-4 text-blue-600 hover:text-blue-800 cursor-pointer" />
-                                </button>
+
+                                <div className="relative group p-1" onMouseEnter={(e) => showFloatingTooltip('Editar paciente', e.currentTarget)} onMouseLeave={hideFloatingTooltip}>
+                                  <button onClick={() => openEditModal(paciente)} className="p-1" aria-label="Editar paciente">
+                                    <Pencil className="w-4 h-4 text-blue-600 hover:text-blue-800 cursor-pointer" />
+                                  </button>
+                                </div>
+
                                 {(() => {
                                   const isPending = paciente.porcentaje === null || typeof paciente.porcentaje === 'undefined';
+                                  const tip = isPending ? 'No se puede crear análisis: paciente pendiente' : 'Añadir nuevo análisis';
                                   return (
-                                    <button
-                                      onClick={() => {
-                                        if (isPending) return;
-                                        setNewAnalisisPacienteId(paciente.id);
-                                        setNewAnalisisPacienteData(paciente);
-                                        setNewAnalisisFile(null);
-                                        setNewAnalisisPreview(null);
-                                        setNewAnalisisValidated(false);
-                                        setNewAnalisisValidationError(null);
-                                        setNewAnalisisOpen(true);
-                                      }}
-                                      className={`p-1 ${isPending ? 'text-gray-300 cursor-not-allowed' : 'text-teal-600 hover:text-teal-800'}`}
-                                      title={isPending ? 'No se puede crear análisis: paciente pendiente' : 'Crear nuevo análisis con nueva imagen'}
-                                      aria-disabled={isPending}
-                                    >
-                                      <Plus className="w-4 h-4" />
-                                    </button>
+                                    <div className="relative group p-1" onMouseEnter={(e) => showFloatingTooltip(tip, e.currentTarget)} onMouseLeave={hideFloatingTooltip}>
+                                      <button
+                                        onClick={() => {
+                                          if (isPending) return;
+                                          setNewAnalisisPacienteId(paciente.id);
+                                          setNewAnalisisPacienteData(paciente);
+                                          setNewAnalisisFile(null);
+                                          setNewAnalisisPreview(null);
+                                          setNewAnalisisValidated(false);
+                                          setNewAnalisisValidationError(null);
+                                          setNewAnalisisOpen(true);
+                                        }}
+                                        className={`p-1 ${isPending ? 'text-gray-300 cursor-not-allowed' : 'text-teal-600 hover:text-teal-800'}`}
+                                        aria-disabled={isPending}
+                                        aria-label={tip}
+                                      >
+                                        <Plus className="w-4 h-4" />
+                                      </button>
+                                    </div>
                                   );
                                 })()}
-                                <button onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Eliminar paciente? Esta acción no se puede deshacer.', onConfirm: () => { setModal({ open: false }); handleDeletePaciente(paciente.id); } })} className="p-1">
-                                  <Trash2 className="w-4 h-4 text-red-600 hover:text-red-800 cursor-pointer" />
-                                </button>
+
+                                <div className="relative group p-1" onMouseEnter={(e) => showFloatingTooltip('Eliminar paciente', e.currentTarget)} onMouseLeave={hideFloatingTooltip}>
+                                  <button onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Eliminar paciente? Esta acción no se puede deshacer.', onConfirm: () => { setModal({ open: false }); handleDeletePaciente(paciente.id); } })} className="p-1" aria-label="Eliminar paciente">
+                                    <Trash2 className="w-4 h-4 text-red-600 hover:text-red-800 cursor-pointer" />
+                                  </button>
+                                </div>
                               </div>
                             </td>
                           </tr>
@@ -1489,6 +1530,9 @@ function Pacientes() {
                             {!editImageAllowed && (
                               <p className="text-xs text-red-600 mt-1">No es posible modificar la radiografía porque este paciente ya tiene uno o más análisis registrados.</p>
                             )}
+                            {editImageAllowed && (
+                              <p className="text-xs text-teal-600 mt-1">Se puede modificar la radiografía porque la última está pendiente.</p>
+                            )}
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Género</label>
@@ -1606,6 +1650,22 @@ function Pacientes() {
         confirmText={modal.confirmText}
         cancelText={modal.cancelText}
       />
+      {floatingTooltip && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            top: `${floatingTooltip.rect.top - 36}px`,
+            left: `${floatingTooltip.rect.left + floatingTooltip.rect.width / 2}px`,
+            transform: 'translateX(-50%)',
+            zIndex: 99999,
+            pointerEvents: 'none',
+          }}
+          className="bg-gray-800 text-white text-xs rounded px-2 py-1 shadow-lg whitespace-nowrap"
+        >
+          {floatingTooltip.text}
+        </div>,
+        document.body,
+      )}
       {imageModalOpen && imageModalData && (
         <div className="fixed inset-0 z-60 flex items-center justify-center px-4">
           <div className="absolute inset-0 bg-black opacity-60" onClick={() => { setImageModalOpen(false); setImageModalData(null); }} />

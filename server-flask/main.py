@@ -1,4 +1,8 @@
+from dotenv import load_dotenv
 from flask import Flask
+
+# Carga variables de entorno desde server-flask/.env si existe
+load_dotenv()
 from flask_cors import CORS
 from routes.auth import auth_bp
 from config import get_db_connection

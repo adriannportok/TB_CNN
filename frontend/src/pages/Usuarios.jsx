@@ -39,8 +39,12 @@ function Usuarios() {
           rol: u.rol ?? u.role ?? "-",
           estado: u.estado ?? "-",
         }));
+        const visible = data.filter((x) => {
+          const r = (x.rol || "").toString().toLowerCase();
+          return !r.includes("admin");
+        });
         setUsuarios(data);
-        setUsuariosFiltrados(data);
+        setUsuariosFiltrados(visible);
       } else {
         setUsuarios([]);
         setUsuariosFiltrados([]);
@@ -52,7 +56,10 @@ function Usuarios() {
   };
 
   useEffect(() => {
-    let filtrados = usuarios;
+    let filtrados = usuarios.filter((x) => {
+      const r = (x.rol || "").toString().toLowerCase();
+      return !r.includes("admin");
+    });
     if (filtros.usuario) {
       filtrados = filtrados.filter((p) => p.usuario && p.usuario.toLowerCase().includes(filtros.usuario.toLowerCase()));
     }
