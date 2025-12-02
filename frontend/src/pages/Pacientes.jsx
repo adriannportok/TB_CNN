@@ -1573,7 +1573,7 @@ function Pacientes() {
                               <p className="text-xs text-red-600 mt-1">No es posible modificar la radiografía porque este paciente ya tiene uno o más análisis registrados.</p>
                             )}
                             {editImageAllowed && (
-                              <p className="text-xs text-teal-600 mt-1">Se puede modificar la radiografía porque la última está pendiente.</p>
+                              <p className="text-xs text-teal-600 mt-1">Se puede modificar la radiografía.</p>
                             )}
                           </div>
                           <div>
