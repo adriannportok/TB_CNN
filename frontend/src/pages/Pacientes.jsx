@@ -972,6 +972,7 @@ function Pacientes() {
                       <Plus className="w-4 h-4 mr-2 text-teal-600" />
                       Agregar Paciente
                     </button>
+ 
                 </div>
               </div>
 
