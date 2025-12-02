@@ -5,6 +5,7 @@ import axios from "axios";
 import { FileText } from "lucide-react";
 import html2pdf from "html2pdf.js";
 import { Pencil, Trash2, ChevronDown, Plus, X, Download } from "lucide-react";
+import { useNavigate } from 'react-router-dom';
 import AlertModal from "../components/AlertModal";
 
 function Pacientes() {
@@ -111,6 +112,7 @@ function Pacientes() {
   useEffect(() => {
     fetchPacientes();
   }, []);
+  const navigate = useNavigate();
 
   const fetchPacientes = async () => {
     try {
@@ -490,6 +492,15 @@ function Pacientes() {
   const handleRegImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      const allowedExt = /\.(jpe?g|png|webp)$/i;
+      if (!allowedTypes.includes(file.type) && !allowedExt.test(file.name)) {
+        setRegFormData((prev) => ({ ...prev, imagen: null }));
+        setRegPreview(null);
+        setRegValidated(false);
+        setRegValidationError('Formato de archivo no válido');
+        return;
+      }
       setRegFormData((prev) => ({ ...prev, imagen: file }));
       setRegPreview(URL.createObjectURL(file));
       setRegValidated(false);
@@ -536,7 +547,20 @@ function Pacientes() {
     setEditPreview(null);
     const isPending = paciente.porcentaje === null || typeof paciente.porcentaje === 'undefined';
     setEditImageAllowed(isPending);
+    // Reset validation state when opening
+    setEditValidated(false);
+    setEditValidationError(null);
+    setEditValidating(false);
     setEditOpen(true);
+  };
+
+  const closeEditModal = () => {
+    setEditOpen(false);
+    setEditPreview(null);
+    setEditFormData({ id: null, nombre: '', apellido: '', fechaNacimiento: '', genero: '', dni: '', imagen: null });
+    setEditValidated(false);
+    setEditValidationError(null);
+    setEditValidating(false);
   };
 
   const handleEditChange = (e) => {
@@ -556,6 +580,15 @@ function Pacientes() {
     if (!editImageAllowed) return;
     const file = e.target.files[0];
     if (file) {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      const allowedExt = /\.(jpe?g|png|webp)$/i;
+      if (!allowedTypes.includes(file.type) && !allowedExt.test(file.name)) {
+        setEditFormData((prev) => ({ ...prev, imagen: null }));
+        setEditPreview(null);
+        setEditValidated(false);
+        setEditValidationError('Formato de archivo no válido');
+        return;
+      }
       setEditFormData((prev) => ({ ...prev, imagen: file }));
       setEditPreview(URL.createObjectURL(file));
       setEditValidated(false);
@@ -641,7 +674,7 @@ function Pacientes() {
 
       const res = await axios.patch(`http://localhost:5000/api/pacientes/${editFormData.id}`, formDataToSend);
       if (res.status === 200) {
-        setModal({ open: true, title: 'Éxito', message: 'Paciente actualizado.' });
+        setModal({ open: true, title: 'Éxito', message: 'Paciente actualizado.', onConfirm: () => { setEditOpen(false); setEditPreview(null); setEditValidated(false); setEditValidationError(null); fetchPacientes(); }, secondaryAction: { text: 'Ir a Análisis', onClick: () => { navigate('/analisisradiografia'); } } });
         setEditOpen(false);
         setEditPreview(null);
         setEditValidated(false);
@@ -719,7 +752,7 @@ function Pacientes() {
       const response = await axios.post("http://localhost:5000/api/pacientes", formDataToSend, { headers: { "Content-Type": "multipart/form-data" } });
 
       if (response.status === 201) {
-        setModal({ open: true, title: "Éxito", message: "Paciente registrado exitosamente." });
+        setModal({ open: true, title: "Éxito", message: "Paciente registrado exitosamente.", onConfirm: () => { setRegisterOpen(false); resetRegForm(); fetchPacientes(); }, secondaryAction: { text: 'Ir a Análisis', onClick: () => { navigate('/analisisradiografia'); } } });
         setRegisterOpen(false);
         resetRegForm();
         fetchPacientes();
@@ -799,6 +832,15 @@ function Pacientes() {
   const handleNewAnalisisFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      const allowedExt = /\.(jpe?g|png|webp)$/i;
+      if (!allowedTypes.includes(file.type) && !allowedExt.test(file.name)) {
+        setNewAnalisisFile(null);
+        setNewAnalisisPreview(null);
+        setNewAnalisisValidated(false);
+        setNewAnalisisValidationError('Formato de archivo no válido');
+        return;
+      }
       setNewAnalisisFile(file);
       setNewAnalisisPreview(URL.createObjectURL(file));
       setNewAnalisisValidated(false);
@@ -861,7 +903,7 @@ function Pacientes() {
 
       const res = await axios.post(`http://localhost:5000/api/analisis/nuevo/${newAnalisisPacienteId}`, fd);
       if (res.status === 201) {
-        setModal({ open: true, title: 'Éxito', message: 'Nuevo análisis creado y marcado como pendiente.' });
+        setModal({ open: true, title: 'Éxito', message: 'Nuevo análisis creado y marcado como pendiente.', onConfirm: () => { setNewAnalisisOpen(false); setNewAnalisisPreview(null); setNewAnalisisFile(null); fetchPacientes(); }, secondaryAction: { text: 'Ir a Análisis', onClick: () => { navigate('/analisisradiografia'); } } });
         setNewAnalisisOpen(false);
         setNewAnalisisPreview(null);
         setNewAnalisisFile(null);
@@ -1451,7 +1493,7 @@ function Pacientes() {
             )}
             {editOpen && (
               <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-                <div className="absolute inset-0 bg-black opacity-40" onClick={() => setEditOpen(false)} />
+                <div className="absolute inset-0 bg-black opacity-40" onClick={closeEditModal} />
                 <div className="relative z-10 w-full max-w-3xl mx-auto transform transition-all duration-200 ease-out scale-100">
                   <div className="bg-white rounded-xl shadow-2xl overflow-hidden max-h-[90vh]">
                     <div className="bg-gradient-to-r from-teal-50 to-white p-4 border-b">
@@ -1465,7 +1507,7 @@ function Pacientes() {
                             <p className="text-xs text-gray-500">Modifica datos del paciente o sube una nueva radiografía (se analizará).</p>
                           </div>
                         </div>
-                        <button onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Cancelar? Se perderán los cambios no guardados.', onConfirm: () => { setEditOpen(false); setEditPreview(null); setEditFormData({ id: null, nombre: '', apellido: '', fechaNacimiento: '', genero: '', dni: '', imagen: null }); }, confirmText: 'Cancelar', cancelText: 'Volver' })} className="p-2 rounded-md text-gray-500 hover:bg-gray-100">
+                        <button onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Cancelar? Se perderán los cambios no guardados.', onConfirm: () => { closeEditModal(); }, confirmText: 'Cancelar', cancelText: 'Volver' })} className="p-2 rounded-md text-gray-500 hover:bg-gray-100">
                           <X className="w-5 h-5" />
                         </button>
                       </div>
@@ -1568,7 +1610,7 @@ function Pacientes() {
                       </div>
 
                       <div className="flex justify-end gap-3 mt-6">
-                        <button onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Cancelar? Se perderán los cambios no guardados.', onConfirm: () => { setEditOpen(false); setEditPreview(null); setEditFormData({ id: null, nombre: '', apellido: '', fechaNacimiento: '', genero: '', dni: '', imagen: null }); }, confirmText: 'Cancelar', cancelText: 'Volver' })} className="px-4 py-2 border border-gray-200 rounded-md bg-white text-gray-700 hover:bg-gray-50">Cancelar</button>
+                        <button onClick={() => setModal({ open: true, title: 'Confirmar', message: '¿Cancelar? Se perderán los cambios no guardados.', onConfirm: () => { closeEditModal(); }, confirmText: 'Cancelar', cancelText: 'Volver' })} className="px-4 py-2 border border-gray-200 rounded-md bg-white text-gray-700 hover:bg-gray-50">Cancelar</button>
                         <button onClick={handleEditSubmit} disabled={editLoading} className="px-4 py-2 bg-teal-600 text-white rounded-md shadow hover:bg-teal-700 inline-flex items-center">
                           {editLoading ? (
                             <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
@@ -1647,6 +1689,7 @@ function Pacientes() {
         message={modal.message}
         onClose={() => setModal({ open: false, title: "", message: "", onConfirm: undefined })}
         onConfirm={modal.onConfirm}
+        secondaryAction={modal.secondaryAction}
         confirmText={modal.confirmText}
         cancelText={modal.cancelText}
       />

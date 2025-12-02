@@ -8,6 +8,7 @@ export default function AlertModal({
   onConfirm,
   confirmText = 'Aceptar',
   cancelText = 'Cancelar',
+  secondaryAction,
 }) {
   if (!open) return null;
 
@@ -34,9 +35,15 @@ export default function AlertModal({
         <div className="flex justify-center gap-3">
           {typeof onConfirm === 'function' ? (
             <>
-              <button onClick={handleClose} className="px-4 py-2 bg-white border border-gray-300 rounded hover:bg-gray-50">
-                {cancelText}
-              </button>
+              {secondaryAction && typeof secondaryAction.onClick === 'function' ? (
+                <button onClick={() => { try { secondaryAction.onClick(); } catch(e){} if (typeof onClose === 'function') onClose(); }} className="px-4 py-2  border-teal-200 bg-teal-100 text-teal-700 rounded hover:bg-teal-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-300">
+                  {secondaryAction.text || 'Ir'}
+                </button>
+              ) : (
+                <button onClick={handleClose} className="px-4 py-2 bg-white border border-gray-300 rounded hover:bg-gray-50">
+                  {cancelText}
+                </button>
+              )}
               <button onClick={handleConfirm} className="px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-500">
                 {confirmText}
               </button>
